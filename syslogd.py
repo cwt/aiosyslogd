@@ -27,6 +27,11 @@ from datetime import datetime
 from priority import SyslogMatrix
 from rfc5424 import convert_rfc5424_to_rfc3164
 
+try:
+    import uvloop
+except ImportError:
+    uvloop = None
+
 class SyslogUDPServer:
 
     syslog_matrix = SyslogMatrix()
@@ -42,7 +47,7 @@ class SyslogUDPServer:
 
         self.setup()
         if DEBUG:
-            print(f'Listening on UDP {host}:{port}')
+            print(f'Listening on UDP {host}:{port} using {self.loop.__module__}')
 
     def setup(self):
         if SQL_WRITE:
@@ -208,8 +213,9 @@ class DatagramProtocol:
 
 
 if __name__ == "__main__":
+    loop = uvloop.new_event_loop() if uvloop else None
     try:
-        syslog_server = SyslogUDPServer(BINDING_IP, BINDING_PORT)
+        syslog_server = SyslogUDPServer(BINDING_IP, BINDING_PORT, loop)
         syslog_server.start()
         loop = syslog_server.loop
 
