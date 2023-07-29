@@ -46,8 +46,7 @@ class SyslogUDPServer:
         self.loop.add_signal_handler(signal.SIGINT, self.handle_sigint_wrapper)
 
         self.setup()
-        if DEBUG:
-            print(f'Listening on UDP {host}:{port} using {self.loop.__module__}')
+        print(f'Listening on UDP {host}:{port} using {self.loop.__module__}')
 
     def setup(self):
         if SQL_WRITE:
