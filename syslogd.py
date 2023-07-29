@@ -84,6 +84,8 @@ class SyslogUDPServer:
 
     async def connect_to_sqlite(self):
         self.db = await aiosqlite.connect('syslog.db', loop=self.loop)
+        # Enable WAL mode for better write performance
+        await self.db.execute('PRAGMA journal_mode=WAL')
         await self.db.execute('''CREATE TABLE IF NOT EXISTS SystemEvents (
             ID INTEGER PRIMARY KEY AUTOINCREMENT,
             Facility INTEGER,
