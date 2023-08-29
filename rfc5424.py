@@ -15,15 +15,8 @@ def convert_rfc5424_to_rfc3164(message):
     priority = match.group(1)
     version = match.group(2)
     timestamp = match.group(3)
-    hostname = match.group(4)
+    hostname = match.group(4)  #Hostname with optional appname and procid
     message = match.group(5)
-
-    # Hostname may contains application name and process id (space separated)
-    hostname, appname, procid = [x or y for x, y in zip_longest(['', '', ''], hostname.split(' '), fillvalue='')]
-    syslog_tag = appname
-    if procid:
-        syslog_tag += '-{}'.format(procid)
-    syslog_tag = syslog_tag or '-'  # In case that there is no appname and procid
 
     # Convert the priority to RFC-3164 format
     rfc5424_pri = int(priority)
@@ -31,13 +24,12 @@ def convert_rfc5424_to_rfc3164(message):
     severity = rfc5424_pri % 8
     rfc3164_pri = facility * 8 + severity
 
-
     # Convert the timestamp to RFC-3164 format (MMM DD HH:MM:SS)
     timestamp_dt = datetime.strptime(timestamp, '%b %d %H:%M:%S')
     timestamp_rfc3164 = timestamp_dt.strftime('%b %d %H:%M:%S')
 
     # Rearrange the fields according to RFC-3164 format
-    rfc3164_message = '<{}>{} {} {}: {}'.format(rfc3164_pri, timestamp_rfc3164, hostname, syslog_tag, message)
+    rfc3164_message = '<{}>{} {}: {}'.format(rfc3164_pri, timestamp_rfc3164, hostname, message)
 
     return rfc3164_message
 

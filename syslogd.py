@@ -113,13 +113,18 @@ class SyslogUDPServer:
         return msg
 
     async def handle_datagram(self, data, address):
+        '''
+        Handle RFC-3164 message
+        e.g. Jun 21 10:54:52 Main-LB forward: in:LAN out:eth11-WAN-TOT
+             [m][d] [---t--] [hostn-program]  [--------message-------]
+        '''
         ReceivedAt = datetime.now()  # Generated
         data = data.decode()
         data = convert_rfc5424_to_rfc3164(data)
         if LOG_DUMP:
-            print(data)
-        datetime_hostname_program = data[data.find('>') + 1:data.find(': ')]
-        m, d, t = datetime_hostname_program.split()[:3]
+            print('\n  DATA:', data)
+        datetime_hostname_program = data[data.find('>')+1:data.find(': ')]
+        m, d, t, hostname = datetime_hostname_program.split()[:4]
         formatted_datetime = '%s %s %s %s' % (
             m, d.zfill(2), t, ReceivedAt.year
         )
@@ -138,21 +143,20 @@ class SyslogUDPServer:
         if abs(time_delta.days) > 1:
             pass  # Something wrong, just ignore it.
         else:
-            hostname, program = datetime_hostname_program.split()[-2:]
+            program = '-'.join(datetime_hostname_program.split()[4:])
             if '[' in program:
                 SysLogTag = program[:program.find('[')]
             else:
                 SysLogTag = program
             if '[' in program:
-                ProcessID = program[program.find('[') + 1:program.find(']')]
+                ProcessID = program[program.find('[')+1:program.find(']')]
             else:
                 ProcessID = '0'
-            Message = data[data.find(': ') + 2:]
-            code = data[data.find('<') + 1:data.find('>')]
+            Message = data[data.find(': ')+2:]
+            code = data[data.find('<')+1:data.find('>')]
             Facility, Priority = self.syslog_matrix.decode_int(code)
             FromHost = hostname or address[0]
             InfoUnitID = 1  # Hardcoded
-
             params = {
                 'Facility': Facility,
                 'Priority': Priority,
@@ -168,7 +172,8 @@ class SyslogUDPServer:
             sql_command = SQL
 
             if SQL_DUMP:
-                print('\nSQL:', sql_command, params)
+                print('\n   SQL:', sql_command)
+                print('\nPARAMS:', params)
 
             if SQL_WRITE:
                 try:
@@ -176,8 +181,9 @@ class SyslogUDPServer:
                         pass
                 except Exception as e:
                     if DEBUG:
-                        print(sql_command, params)
-                        print(e)
+                        print('\n   SQL:', sql_command)
+                        print('\nPARAMS:', params)
+                        print('\nEXCEPT:', e)
                     await self.db.rollback()
                 else:
                     await self.db.commit()
