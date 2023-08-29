@@ -30,8 +30,8 @@ def convert_rfc5424_to_rfc3164(message):
     timestamp_rfc3164 = timestamp_dt.strftime("%b %d %H:%M:%S")
 
     # Rearrange the fields according to RFC-3164 format
-    rfc3164_message = "<{}>{} {}: {}".format(
-        rfc3164_pri, timestamp_rfc3164, hostname, message
+    rfc3164_message = (
+        f"<{rfc3164_pri}>{timestamp_rfc3164} {hostname}: {message}"
     )
 
     return rfc3164_message

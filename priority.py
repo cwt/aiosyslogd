@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 
-class SyslogMatrix(object):
+class SyslogMatrix:
     LEVELS = (
         "emergency",
         "alert",

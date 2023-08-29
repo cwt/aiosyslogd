@@ -73,7 +73,7 @@ class SyslogUDPServer:
                 await self.db.close()
             except Exception as e:
                 if DEBUG:
-                    print("Error while closing the database connection:", e)
+                    print(f"Error while closing the database connection: {e}")
 
     async def shutdown(self):
         # Stop the server
@@ -132,21 +132,16 @@ class SyslogUDPServer:
         data = data.decode()
         data = convert_rfc5424_to_rfc3164(data)
         if LOG_DUMP:
-            print("\n  DATA:", data)
+            print(f"\n  DATA: {data}")
         datetime_hostname_program = data[data.find(">") + 1 : data.find(": ")]
         m, d, t, hostname = datetime_hostname_program.split()[:4]
-        formatted_datetime = "%s %s %s %s" % (m, d.zfill(2), t, ReceivedAt.year)
+        formatted_datetime = f"{m} {d.zfill(2)} {t} {ReceivedAt.year}"
         DeviceReportedTime = datetime.strptime(
             formatted_datetime, "%b %d %H:%M:%S %Y"
         )
         time_delta = ReceivedAt - DeviceReportedTime
         if abs(time_delta.days) > 1:
-            formatted_datetime = "%s %s %s %s" % (
-                m,
-                d.zfill(2),
-                t,
-                ReceivedAt.year - 1,
-            )
+            formatted_datetime = f"{m} {d.zfill(2)} {t} {ReceivedAt.year - 1}"
             DeviceReportedTime = datetime.strptime(
                 formatted_datetime, "%b %d %H:%M:%S %Y"
             )
@@ -185,8 +180,8 @@ class SyslogUDPServer:
             sql_command = SQL
 
             if SQL_DUMP:
-                print("\n   SQL:", sql_command)
-                print("\nPARAMS:", params)
+                print(f"\n   SQL: {sql_command}")
+                print(f"\nPARAMS: {params}")
 
             if SQL_WRITE:
                 try:
@@ -194,9 +189,9 @@ class SyslogUDPServer:
                         pass
                 except Exception as e:
                     if DEBUG:
-                        print("\n   SQL:", sql_command)
-                        print("\nPARAMS:", params)
-                        print("\nEXCEPT:", e)
+                        print(f"\n   SQL: {sql_command}")
+                        print(f"\nPARAMS: {params}")
+                        print(f"\nEXCEPT: {e}")
                     await self.db.rollback()
                 else:
                     await self.db.commit()
@@ -225,7 +220,7 @@ class DatagramProtocol:
 
     def error_received(self, exc):
         if DEBUG:
-            print("Error received:", exc)
+            print(f"Error received: {exc}")
 
     def connection_lost(self, exc):
         if DEBUG:
@@ -245,7 +240,7 @@ if __name__ == "__main__":
     except (IOError, SystemExit):
         raise
     except Exception as e:
-        print("Error occurred:", e)
+        print(f"Error occurred: {e}")
     finally:
         print("Shutting down the server...")
         syslog_server.stop()
