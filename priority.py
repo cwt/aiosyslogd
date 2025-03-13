@@ -49,7 +49,9 @@ class SyslogMatrix:
 
     def decode(self, code):
         code = str(code) if isinstance(code, int) else code
-        facility, level = self.matrix.get(code)
+        facility, level = self.matrix.get(
+            code, ("kernel", "emergency")
+        )  # Fallback to 0, 0
         return (
             (facility, self.FACILITIES.index(facility)),
             (level, self.LEVELS.index(level)),
