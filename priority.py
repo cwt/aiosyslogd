@@ -5,7 +5,7 @@ class SyslogMatrix:
     LEVELS = (
         "emergency",
         "alert",
-        "critica",
+        "critical",
         "error",
         "warning",
         "notice",
