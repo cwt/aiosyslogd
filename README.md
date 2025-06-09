@@ -169,9 +169,13 @@ async def main():
 
     loop = asyncio.get_running_loop()
 
+    # Define the protocol factory as a simple function
+    def server_protocol_factory():
+        return server
+
     # Start the UDP server endpoint
     transport, protocol = await loop.create_datagram_endpoint(
-        lambda: server,
+        server_protocol_factory,
         local_addr=(server.host, server.port)
     )
 
@@ -186,7 +190,7 @@ async def main():
         await server.shutdown()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main)
 ```
 
 ## Contributing
