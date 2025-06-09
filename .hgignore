@@ -1,2 +1,3 @@
+.mypy_cache
 syslog.db
 syslog.db-*
