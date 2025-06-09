@@ -54,8 +54,8 @@ If a configuration file is not found, this default version will be created:
 
 ```toml
 [server]
-bind\_ip = "0.0.0.0"
-bind\_port = 5140
+bind_ip = "0.0.0.0"
+bind_port = 5140
 debug = false
 log_dump = false
 
