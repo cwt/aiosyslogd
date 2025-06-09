@@ -1,3 +1,4 @@
 .mypy_cache
+aiosyslogd.toml
 syslog.db
 syslog.db-*

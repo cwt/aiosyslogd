@@ -1,0 +1,12 @@
+[server]
+bind_ip = "0.0.0.0"
+bind_port = 5140
+debug = false
+log_dump = false
+
+[sqlite]
+enabled = true
+database = "syslog.db"
+batch_size = 1000
+batch_timeout = 5
+sql_dump = false

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 ## Syslog Server in Python with asyncio and SQLite.
 
+from . import config
 from .priority import SyslogMatrix
 from .rfc5424 import RFC5424_PATTERN
 from .rfc5424 import normalize_to_rfc5424
@@ -10,7 +11,6 @@ from types import ModuleType
 from typing import Dict, Any, Tuple, List, Type, Self
 import aiosqlite
 import asyncio
-import os
 import re
 import signal
 
@@ -21,17 +21,22 @@ try:
 except ImportError:
     pass
 
-
 # --- Configuration ---
-# Environment variables are now read inside the functions that use them.
-DEBUG: bool = os.environ.get("DEBUG") == "True"
-LOG_DUMP: bool = os.environ.get("LOG_DUMP") == "True"
-SQL_DUMP: bool = os.environ.get("SQL_DUMP") == "True"
-SQL_WRITE: bool = os.environ.get("SQL_WRITE") == "True"
-BINDING_IP: str = os.environ.get("BINDING_IP", "0.0.0.0")
-BINDING_PORT: int = int(os.environ.get("BINDING_PORT", "5140"))
-BATCH_SIZE: int = int(os.environ.get("BATCH_SIZE", "1000"))
-BATCH_TIMEOUT: int = int(os.environ.get("BATCH_TIMEOUT", "5"))
+# Load configuration from aiosyslogd.toml
+CFG = config.load_config()
+
+# Server settings
+DEBUG: bool = CFG.get("server", {}).get("debug", False)
+LOG_DUMP: bool = CFG.get("server", {}).get("log_dump", False)
+BINDING_IP: str = CFG.get("server", {}).get("bind_ip", "0.0.0.0")
+BINDING_PORT: int = int(CFG.get("server", {}).get("bind_port", 5140))
+
+# SQLite settings
+SQL_WRITE: bool = CFG.get("sqlite", {}).get("enabled", False)
+SQL_DUMP: bool = CFG.get("sqlite", {}).get("sql_dump", False)
+SQLITE_DB_PATH: str = CFG.get("sqlite", {}).get("database", "syslog.db")
+BATCH_SIZE: int = int(CFG.get("sqlite", {}).get("batch_size", 1000))
+BATCH_TIMEOUT: int = int(CFG.get("sqlite", {}).get("batch_timeout", 5))
 
 
 class SyslogUDPServer(asyncio.DatagramProtocol):
@@ -59,7 +64,7 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         print(f"aiosyslogd starting on UDP {host}:{port}...")
         if SQL_WRITE:
             print(
-                f"SQLite writing ENABLED. Batch size: {BATCH_SIZE}, Timeout: {BATCH_TIMEOUT}s"
+                f"SQLite writing ENABLED to '{SQLITE_DB_PATH}'. Batch size: {BATCH_SIZE}, Timeout: {BATCH_TIMEOUT}s"
             )
             await server.connect_to_sqlite()
         if DEBUG:
@@ -217,12 +222,11 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
 
     async def connect_to_sqlite(self) -> None:
         """Initializes the database connection."""
-        # No `async with` here as we want to keep the connection open.
-        self.db = await aiosqlite.connect("syslog.db")
+        self.db = await aiosqlite.connect(SQLITE_DB_PATH)
         await self.db.execute("PRAGMA journal_mode=WAL")
         await self.db.execute("PRAGMA auto_vacuum = FULL")
         await self.db.commit()
-        print("SQLite database connected.")
+        print(f"SQLite database '{SQLITE_DB_PATH}' connected.")
 
     async def create_monthly_table(self, year_month: str) -> str:
         """Creates tables for the given month if they don't exist."""
