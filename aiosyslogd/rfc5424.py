@@ -3,6 +3,10 @@ from datetime import datetime, UTC
 from typing import Dict
 import re
 
+# --- RFC 5424 and RFC 3164 Syslog Message Patterns ---
+# These patterns are compiled here to avoid repeated compilation.
+
+# Pattern for RFC 5424: <PRI>VER TS HOST APP PID MSGID SD MSG
 RFC5424_PATTERN: re.Pattern[str] = re.compile(
     r"<(?P<pri>\d+)>"
     r"(?P<ver>\d+)\s"
@@ -16,23 +20,24 @@ RFC5424_PATTERN: re.Pattern[str] = re.compile(
     re.DOTALL,
 )
 
+# Pattern for RFC 3164: <PRI>MMM DD HH:MM:SS HOSTNAME TAG[PID]: MSG
+# Made the colon after the tag optional and adjusted tag capture.
+RFC3164_PATTERN: re.Pattern[str] = re.compile(
+    r"<(?P<pri>\d{1,3})>"
+    r"(?P<mon>\w{3})\s+(?P<day>\d{1,2})\s+(?P<hr>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})"
+    r"\s+(?P<host>[\w\-\.]+)"
+    r"\s+(?P<tag>\S+?)(:|\s-)?\s"  # Flexible tag/separator matching
+    r"(?P<msg>.*)",
+    re.DOTALL,
+)
+
 
 def convert_rfc3164_to_rfc5424(message: str, debug_mode: bool = False) -> str:
     """
     Converts a best-effort RFC 3164 syslog message to an RFC 5424 message.
     This version is more flexible to handle formats like FortiGate's.
     """
-    # Pattern for RFC 3164: <PRI>MMM DD HH:MM:SS HOSTNAME TAG[PID]: MSG
-    # Made the colon after the tag optional and adjusted tag capture.
-    pattern: re.Pattern[str] = re.compile(
-        r"<(?P<pri>\d{1,3})>"
-        r"(?P<mon>\w{3})\s+(?P<day>\d{1,2})\s+(?P<hr>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})"
-        r"\s+(?P<host>[\w\-\.]+)"
-        r"\s+(?P<tag>\S+?)(:|\s-)?\s"  # Flexible tag/separator matching
-        r"(?P<msg>.*)",
-        re.DOTALL,
-    )
-    match: re.Match[str] | None = pattern.match(message)
+    match: re.Match[str] | None = RFC3164_PATTERN.match(message)
 
     if not match:
         if debug_mode:

@@ -63,9 +63,8 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         server = cls(host, port)
         print(f"aiosyslogd starting on UDP {host}:{port}...")
         if SQL_WRITE:
-            print(
-                f"SQLite writing ENABLED to '{SQLITE_DB_PATH}'. Batch size: {BATCH_SIZE}, Timeout: {BATCH_TIMEOUT}s"
-            )
+            print(f"SQLite writing ENABLED to '{SQLITE_DB_PATH}.")
+            print(f"Batch size: {BATCH_SIZE}, Timeout: {BATCH_TIMEOUT}s")
             await server.connect_to_sqlite()
         if DEBUG:
             print("Debug mode is ON.")
@@ -237,25 +236,30 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
 
         async with self.db.cursor() as cursor:
             await cursor.execute(
-                f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
+                "SELECT name FROM sqlite_master "
+                f"WHERE type='table' AND name='{table_name}'"
             )
             if await cursor.fetchone() is None:
                 if DEBUG:
                     print(
-                        f"Creating new tables for {year_month}: {table_name}, {fts_table_name}"
+                        "Creating new tables for "
+                        f"{year_month}: {table_name}, {fts_table_name}"
                     )
                 await self.db.execute(
                     f"""CREATE TABLE {table_name} (
-                    ID INTEGER PRIMARY KEY AUTOINCREMENT, Facility INTEGER, Priority INTEGER,
-                    FromHost TEXT, InfoUnitID INTEGER, ReceivedAt TIMESTAMP, DeviceReportedTime TIMESTAMP,
+                    ID INTEGER PRIMARY KEY AUTOINCREMENT, Facility INTEGER,
+                    Priority INTEGER, FromHost TEXT, InfoUnitID INTEGER,
+                    ReceivedAt TIMESTAMP, DeviceReportedTime TIMESTAMP,
                     SysLogTag TEXT, ProcessID TEXT, Message TEXT
                 )"""
                 )
                 await self.db.execute(
-                    f"CREATE INDEX idx_ReceivedAt_{year_month} ON {table_name} (ReceivedAt)"
+                    f"CREATE INDEX idx_ReceivedAt_{year_month} "
+                    f"ON {table_name} (ReceivedAt)"
                 )
                 await self.db.execute(
-                    f"CREATE VIRTUAL TABLE {fts_table_name} USING fts5(Message, content='{table_name}', content_rowid='ID')"
+                    f"CREATE VIRTUAL TABLE {fts_table_name} "
+                    f"USING fts5(Message, content='{table_name}', content_rowid='ID')"
                 )
                 await self.db.commit()
         return table_name

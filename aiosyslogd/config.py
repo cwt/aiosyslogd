@@ -30,7 +30,8 @@ def _create_default_config(path: str) -> Dict[str, Any]:
     with open(path, "w") as f:
         toml.dump(DEFAULT_CONFIG, f)
     print(
-        f"Default configuration file created. Please review '{path}' and restart the server if needed."
+        f"Default configuration file created. Please review '{path}' "
+        "and restart the server if needed."
     )
     return DEFAULT_CONFIG
 
@@ -42,8 +43,10 @@ def load_config() -> Dict[str, Any]:
     It first checks for the 'AIOSYSLOGD_CONFIG' environment variable for a custom path.
     If the variable is not set, it falls back to 'aiosyslogd.toml' in the current directory.
 
-    - If a custom path is specified and the file doesn't exist, the server will exit with an error.
-    - If the default file ('aiosyslogd.toml') doesn't exist, it will be created automatically.
+    - If a custom path is specified and the file doesn't exist,
+      the server will exit with an error.
+    - If the default file ('aiosyslogd.toml') doesn't exist,
+      it will be created automatically.
     """
     config_path_from_env: str | None = os.environ.get("AIOSYSLOGD_CONFIG")
 
