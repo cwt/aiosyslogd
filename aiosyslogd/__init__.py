@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from importlib.metadata import version, PackageNotFoundError
 from typing import List
 

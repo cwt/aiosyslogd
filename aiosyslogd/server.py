@@ -2,17 +2,17 @@
 # -*- coding: utf-8 -*-
 ## Syslog Server in Python with asyncio and SQLite.
 
-import asyncio
+from .priority import SyslogMatrix
+from .rfc5424 import RFC5424_PATTERN
+from .rfc5424 import normalize_to_rfc5424
+from datetime import datetime
+from types import ModuleType
+from typing import Dict, Any, Tuple, List, Type, Self
 import aiosqlite
-import signal
+import asyncio
 import os
 import re
-from datetime import datetime, UTC
-from typing import Dict, Any, Tuple, List, Type, Self
-from types import ModuleType
-
-# Relative imports for package structure
-from .priority import SyslogMatrix
+import signal
 
 uvloop: ModuleType | None = None
 try:
@@ -34,102 +34,13 @@ BATCH_SIZE: int = int(os.environ.get("BATCH_SIZE", "1000"))
 BATCH_TIMEOUT: int = int(os.environ.get("BATCH_TIMEOUT", "5"))
 
 
-# --- Conversion Utilities ---
-
-
-def convert_rfc3164_to_rfc5424(message: str, debug_mode: bool = False) -> str:
-    """
-    Converts a best-effort RFC 3164 syslog message to an RFC 5424 message.
-    This version is more flexible to handle formats like FortiGate's.
-    """
-    # Pattern for RFC 3164: <PRI>MMM DD HH:MM:SS HOSTNAME TAG[PID]: MSG
-    # Made the colon after the tag optional and adjusted tag capture.
-    pattern: re.Pattern[str] = re.compile(
-        r"<(?P<pri>\d{1,3})>"
-        r"(?P<mon>\w{3})\s+(?P<day>\d{1,2})\s+(?P<hr>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})"
-        r"\s+(?P<host>[\w\-\.]+)"
-        r"\s+(?P<tag>\S+?)(:|\s-)?\s"  # Flexible tag/separator matching
-        r"(?P<msg>.*)",
-        re.DOTALL,
-    )
-    match: re.Match[str] | None = pattern.match(message)
-
-    if not match:
-        if debug_mode:
-            print(
-                f"[RFC-CONVERT] Not an RFC 3164 message, returning original: {message}"
-            )
-        return message
-
-    parts: Dict[str, str] = match.groupdict()
-    priority: str = parts["pri"]
-    hostname: str = parts["host"]
-    raw_tag: str = parts["tag"]
-    msg: str = parts["msg"].strip()
-
-    app_name: str = raw_tag
-    procid: str = "-"
-    pid_match: re.Match[str] | None = re.match(r"^(.*)\[(\d+)\]$", raw_tag)
-    if pid_match:
-        app_name = pid_match.group(1)
-        procid = pid_match.group(2)
-
-    try:
-        now: datetime = datetime.now()
-        dt_naive: datetime = datetime.strptime(
-            f"{parts['mon']} {parts['day']} {parts['hr']}:{parts['min']}:{parts['sec']}",
-            "%b %d %H:%M:%S",
-        ).replace(year=now.year)
-
-        if dt_naive > now:
-            dt_naive = dt_naive.replace(year=now.year - 1)
-
-        dt_aware: datetime = dt_naive.astimezone().astimezone(UTC)
-        timestamp: str = dt_aware.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-    except ValueError:
-        if debug_mode:
-            print(
-                "[RFC-CONVERT] Could not parse RFC-3164 timestamp, using current time."
-            )
-        timestamp = (
-            datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-        )
-
-    return f"<{priority}>1 {timestamp} {hostname} {app_name} {procid} - - {msg}"
-
-
-def normalize_to_rfc5424(message: str, debug_mode: bool = False) -> str:
-    """
-    Ensures a syslog message is in RFC 5424 format.
-    Converts RFC 3164 messages, and leaves RFC 5424 as is.
-    """
-    pri_end: int = message.find(">")
-    if pri_end > 0 and len(message) > pri_end + 2:
-        if message[pri_end + 1] == "1" and message[pri_end + 2].isspace():
-            return message
-
-    return convert_rfc3164_to_rfc5424(message, debug_mode)
-
-
 class SyslogUDPServer(asyncio.DatagramProtocol):
     """An asynchronous Syslog UDP server with batch database writing."""
 
     syslog_matrix: SyslogMatrix = SyslogMatrix()
-    RFC5424_PATTERN: re.Pattern[str] = re.compile(
-        r"<(?P<pri>\d+)>"
-        r"(?P<ver>\d+)\s"
-        r"(?P<ts>\S+)\s"
-        r"(?P<host>\S+)\s"
-        r"(?P<app>\S+)\s"
-        r"(?P<pid>\S+)\s"
-        r"(?P<msgid>\S+)\s"
-        r"(?P<sd>(\-|(?:\[.+?\])+))\s?"
-        r"(?P<msg>.*)",
-        re.DOTALL,
-    )
 
-    # __init__ is now synchronous and lightweight
     def __init__(self, host: str, port: int) -> None:
+        """Initializes the SyslogUDPServer instance."""
         self.host: str = host
         self.port: int = port
         self.loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
@@ -141,9 +52,9 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
             Tuple[bytes, Tuple[str, int], datetime]
         ] = asyncio.Queue()
 
-    # An async factory to properly create and initialize the server
     @classmethod
     async def create(cls: Type[Self], host: str, port: int) -> Self:
+        """Creates and initializes the SyslogUDPServer instance."""
         server = cls(host, port)
         print(f"aiosyslogd starting on UDP {host}:{port}...")
         if SQL_WRITE:
@@ -156,6 +67,7 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         return server
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
+        """Handles the connection made event."""
         self.transport = transport  # type: ignore
         if SQL_WRITE and not self._db_writer_task:
             self._db_writer_task = self.loop.create_task(self.database_writer())
@@ -168,21 +80,22 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         self._message_queue.put_nowait((data, addr, datetime.now()))
 
     def error_received(self, exc: Exception) -> None:
+        """Handles errors received from the transport."""
         if DEBUG:
             print(f"Error received: {exc}")
 
     def connection_lost(self, exc: Exception | None) -> None:
+        """Handles connection loss."""
         if DEBUG:
             print(f"Connection lost: {exc}")
 
     async def database_writer(self) -> None:
         """A dedicated task to write messages to the database in batches."""
         batch: List[Dict[str, Any]] = []
-        while not self._shutting_down or not self._message_queue.empty():
+        async for data, addr, received_at in AsyncQueueIterator(
+            self._message_queue
+        ):
             try:
-                data, addr, received_at = await asyncio.wait_for(
-                    self._message_queue.get(), timeout=BATCH_TIMEOUT
-                )
                 params = self.process_datagram(data, addr, received_at)
                 if params:
                     batch.append(params)
@@ -190,13 +103,12 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
                 if len(batch) >= BATCH_SIZE:
                     await self.write_batch_to_db(batch)
                     batch.clear()
-            except asyncio.TimeoutError:
-                if batch:
-                    await self.write_batch_to_db(batch)
-                    batch.clear()
             except Exception as e:
                 if DEBUG:
                     print(f"[DB-WRITER-ERROR] {e}")
+            # Check for shutdown or empty queue to exit gracefully
+            if self._shutting_down and self._message_queue.empty():
+                break
         if batch:
             await self.write_batch_to_db(batch)
             batch.clear()
@@ -223,9 +135,7 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
             )
 
         try:
-            match: re.Match[str] | None = self.RFC5424_PATTERN.match(
-                processed_data
-            )
+            match: re.Match[str] | None = RFC5424_PATTERN.match(processed_data)
             if not match:
                 if DEBUG:
                     print(f"Failed to parse as RFC-5424: {processed_data}")
@@ -291,9 +201,13 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
             print(f"  {summary}")
 
         try:
-            await self.db.executemany(sql_command, batch)
+            async with self.db.cursor() as cursor:
+                # Execute the insert and FTS sync concurrently
+                await asyncio.gather(
+                    cursor.executemany(sql_command, batch),
+                    self.sync_fts_for_month(year_month),
+                )
             await self.db.commit()
-            await self.sync_fts_for_month(year_month)
             if DEBUG:
                 print(f"Successfully wrote batch of {len(batch)} messages.")
         except Exception as e:
@@ -303,6 +217,7 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
 
     async def connect_to_sqlite(self) -> None:
         """Initializes the database connection."""
+        # No `async with` here as we want to keep the connection open.
         self.db = await aiosqlite.connect("syslog.db")
         await self.db.execute("PRAGMA journal_mode=WAL")
         await self.db.execute("PRAGMA auto_vacuum = FULL")
@@ -352,9 +267,10 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
 
         fts_table_name: str = f"SystemEventsFTS{year_month}"
         try:
-            await self.db.execute(
-                f"INSERT INTO {fts_table_name}({fts_table_name}) VALUES('rebuild')"
-            )
+            async with self.db.cursor() as cursor:
+                await cursor.execute(
+                    f"INSERT INTO {fts_table_name}({fts_table_name}) VALUES('rebuild')"
+                )
             await self.db.commit()
             if DEBUG:
                 print(f"Synced FTS table {fts_table_name}.")
@@ -377,9 +293,28 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
             # The writer task loop will exit gracefully.
             await self._db_writer_task
 
-        if self.db:
+        if self.db:  # Close the database connection if it exists
             await self.db.close()
             print("Database connection closed.")
+
+
+class AsyncQueueIterator:
+    """Asynchronous iterator for asyncio.Queue."""
+
+    def __init__(self, queue: asyncio.Queue) -> None:
+        self.queue = queue
+
+    def __aiter__(self) -> Self:
+        return self
+
+    async def __anext__(self) -> Tuple[bytes, Tuple[str, int], datetime]:
+        try:
+            # Use a short timeout to allow checking shutdown conditions
+            return await asyncio.wait_for(
+                self.queue.get(), timeout=BATCH_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            raise StopAsyncIteration
 
 
 async def run_server() -> None:

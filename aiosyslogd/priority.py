@@ -43,6 +43,7 @@ class SyslogMatrix:
     )
 
     def __init__(self) -> None:
+        """Initializes the SyslogMatrix with a mapping of priority codes."""
         self.matrix: Dict[str, Tuple[str, str]] = {}
         i: int = 0
         for facility in self.FACILITIES:
