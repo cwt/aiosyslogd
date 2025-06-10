@@ -2,15 +2,17 @@
 
 **aiosyslogd** is a high-performance, asynchronous Syslog server built with Python's asyncio. It is designed for efficiently receiving, parsing, and storing a large volume of syslog messages.
 
-It features an optional integration with uvloop for a significant performance boost and can write messages to a SQLite database, automatically creating monthly tables and maintaining a Full-Text Search (FTS) index for fast queries.
+It features an optional integration with uvloop for a significant performance boost and can write messages to a SQLite database or Meilisearch, automatically creating monthly tables/indexes and maintaining a Full-Text Search (FTS) index for fast queries.
 
 ## Key Features
 
 * **Asynchronous:** Built on asyncio to handle thousands of concurrent messages with minimal overhead.
 * **Fast:** Supports uvloop for a C-based event loop implementation, making it one of the fastest ways to run asyncio.
-* **SQLite Backend:** Optionally writes all incoming messages to a SQLite database.
-* **Automatic Table Management:** Creates new tables for each month (`SystemEventsYYYYMM`) to keep the database organized and fast.
-* **Full-Text Search:** Automatically maintains an `FTS5` virtual table for powerful and fast message searching.
+* **Flexible Database Backends:**
+  * **SQLite Backend:** Optionally writes all incoming messages to a SQLite database with automatic monthly table management and FTS5 virtual tables for powerful search.
+  * **Meilisearch Backend:** Optionally stores messages in Meilisearch, a fast and lightweight search engine, with automatic monthly indexes and advanced search capabilities like filtering, sorting, and proximity precision.
+* **Automatic Table/Index Management:** Creates new tables (SQLite) or indexes (Meilisearch) for each month (`SystemEventsYYYYMM`) to keep the database organized and fast.
+* **Full-Text Search:** Automatically maintains an `FTS5` virtual table (SQLite) or Meilisearch index for powerful and fast message searching.
 * **RFC5424 Conversion:** Includes a utility to convert older *RFC3164* formatted messages to the modern *RFC5424* format.
 * **Flexible Configuration:** Configure the server via a simple `aiosyslogd.toml` file.
 
@@ -42,7 +44,7 @@ $ aiosyslogd
 
 On the first run, if an `aiosyslogd.toml` file is not found in the current directory, the server will create one with default settings and then start.
 
-The server will begin listening on 0.0.0.0:5140 and, if enabled in the configuration, create a syslog.db file in the current directory.
+The server will begin listening on 0.0.0.0:5140 and, if enabled in the configuration, create a syslog.sqlite3 file (SQLite) in the current directory or connect to Meilisearch.
 
 ## Configuration
 
@@ -59,12 +61,18 @@ bind_port = 5140
 debug = false
 log_dump = false
 
-[sqlite]
-enabled = true
-database = "syslog.db"
+[database]
+driver = "sqlite"
 batch_size = 1000
 batch_timeout = 5
 sql_dump = false
+
+[database.sqlite]
+database = "syslog.sqlite3"
+
+[database.meilisearch]
+url = "http://127.0.0.1:7700"
+api_key = None
 ```
 
 #### Custom Configuration Path
@@ -80,17 +88,19 @@ When a custom path is provided, the server will **not** create a default file if
 
 ### Configuration Options
 
-| Section | Key | Description | Default |
-| :---- | :---- | :---- | :---- |
-| server | bind\_ip | The IP address the server should bind to. | "0.0.0.0" |
-| server | bind\_port | The UDP port to listen on. | 5140 |
-| server | debug | Set to true to enable verbose logging for parsing and database errors. | false |
-| server | log\_dump | Set to true to print every received message to the console. | false |
-| sqlite | enabled | Set to true to enable writing to the SQLite database. | true |
-| sqlite | database | The path to the SQLite database file. | "syslog.db" |
-| sqlite | batch\_size | The number of messages to batch together before writing to the database. | 1000 |
-| sqlite | batch\_timeout | The maximum time in seconds to wait before writing an incomplete batch. | 5 |
-| sqlite | sql\_dump | Set to true to print the SQL command and parameters before execution. | false |
+| Section            | Key                | Description                                                                 | Default                     |
+| :----------------- | :----------------- | :-------------------------------------------------------------------------- | :-------------------------- |
+| server             | bind_ip            | The IP address the server should bind to.                                   | "0.0.0.0"                   |
+| server             | bind_port          | The UDP port to listen on.                                                  | 5140                        |
+| server             | debug              | Set to true to enable verbose logging for parsing and database errors.      | false                       |
+| server             | log_dump           | Set to true to print every received message to the console.                 | false                       |
+| database           | driver             | The database backend to use ("sqlite" or "meilisearch").                    | "sqlite"                    |
+| database           | batch_size         | The number of messages to batch together before writing to the database.    | 1000                        |
+| database           | batch_timeout      | The maximum time in seconds to wait before writing an incomplete batch.     | 5                           |
+| database           | sql_dump           | Set to true to print the SQL command and parameters before execution (SQLite only). | false               |
+| database.sqlite    | database           | The path to the SQLite database file.                                       | "syslog.sqlite3"            |
+| database.meilisearch | url              | The URL of the Meilisearch instance.                                        | "http://127.0.0.1:7700"     |
+| database.meilisearch | api_key          | The API key for Meilisearch (optional).                                     | None                        |
 
 **Note:** when `sql_dump` is enabled, `log_dump` will be disabled.
 
@@ -100,7 +110,7 @@ You can use **rsyslog** as a robust, battle-tested frontend for **aiosyslogd**. 
 
 Here are two common configurations:
 
-### 1\. Forwarding from an Existing rsyslog Instance
+### 1. Forwarding from an Existing rsyslog Instance
 
 If you already have an **rsyslog** server running and simply want to forward all logs to **aiosyslogd**, add the following lines to a new file in `/etc/rsyslog.d/`, such as `99-forward-to-aiosyslogd.conf`. This configuration includes queueing to prevent log loss if **aiosyslogd** is temporarily unavailable.
 
@@ -117,7 +127,7 @@ $ActionResumeRetryCount -1
 *.* @127.0.0.1:5140
 ```
 
-### 2\. Using rsyslog as a Dedicated Forwarder
+### 2. Using rsyslog as a Dedicated Forwarder
 
 If you want rsyslog to listen on the standard syslog port 514/udp and do nothing but forward to aiosyslogd, you can use a minimal configuration like this. This is a common pattern for privilege separation, allowing aiosyslogd to run as a non-root user.
 
@@ -197,7 +207,7 @@ if __name__ == "__main__":
 
 ## Contributing
 
-Contributions are welcome\! If you find a bug or have a feature request, please open an issue on the project's repository.
+Contributions are welcome! If you find a bug or have a feature request, please open an issue on the project's repository.
 
 ## License
 
