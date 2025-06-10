@@ -14,7 +14,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "sqlite": {
         "enabled": True,
-        "database": "syslog.db",
+        "database": "syslog.sqlite3",
         "batch_size": 1000,
         "batch_timeout": 5,
         "sql_dump": False,

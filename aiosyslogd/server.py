@@ -34,7 +34,7 @@ BINDING_PORT: int = int(CFG.get("server", {}).get("bind_port", 5140))
 # SQLite settings
 SQL_WRITE: bool = CFG.get("sqlite", {}).get("enabled", False)
 SQL_DUMP: bool = CFG.get("sqlite", {}).get("sql_dump", False)
-SQLITE_DB_PATH: str = CFG.get("sqlite", {}).get("database", "syslog.db")
+SQLITE_DB_PATH: str = CFG.get("sqlite", {}).get("database", "syslog.sqlite3")
 BATCH_SIZE: int = int(CFG.get("sqlite", {}).get("batch_size", 1000))
 BATCH_TIMEOUT: int = int(CFG.get("sqlite", {}).get("batch_timeout", 5))
 

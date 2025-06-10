@@ -6,7 +6,7 @@ log_dump = false
 
 [sqlite]
 enabled = true
-database = "syslog.db"
+database = "syslog.sqlite3"
 batch_size = 1000
 batch_timeout = 5
 sql_dump = false
