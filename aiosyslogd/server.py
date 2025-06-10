@@ -97,28 +97,45 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
             print(f"Connection lost: {exc}")
 
     async def database_writer(self) -> None:
-        """A dedicated task to write messages to the database in batches."""
+        """
+        A dedicated task that runs continuously to write messages to the
+        database in batches.
+        """
         batch: List[Dict[str, Any]] = []
-        async for data, addr, received_at in AsyncQueueIterator(
-            self._message_queue
-        ):
+        while True:
             try:
+                # Wait for the next message with a timeout.
+                data, addr, received_at = await asyncio.wait_for(
+                    self._message_queue.get(), timeout=BATCH_TIMEOUT
+                )
+
                 params = self.process_datagram(data, addr, received_at)
                 if params:
                     batch.append(params)
                 self._message_queue.task_done()
+
+                # If the batch is full, write it to the database.
                 if len(batch) >= BATCH_SIZE:
                     await self.write_batch_to_db(batch)
                     batch.clear()
+
+            except asyncio.TimeoutError:
+                # If a timeout occurs, it means the queue has been idle.
+                # Write any remaining messages in the batch.
+                if batch:
+                    await self.write_batch_to_db(batch)
+                    batch.clear()
+
+                # If the server is shutting down and the queue is empty,
+                # we can safely exit the writer task.
+                if self._shutting_down and self._message_queue.empty():
+                    break
             except Exception as e:
                 if DEBUG:
-                    print(f"[DB-WRITER-ERROR] {e}")
-            # Check for shutdown or empty queue to exit gracefully
-            if self._shutting_down and self._message_queue.empty():
-                break
-        if batch:
-            await self.write_batch_to_db(batch)
-            batch.clear()
+                    print(
+                        f"[DB-WRITER-ERROR] An unexpected error occurred: {e}"
+                    )
+
         print("Database writer task finished.")
 
     def process_datagram(
@@ -307,25 +324,6 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         if self.db:  # Close the database connection if it exists
             await self.db.close()
             print("Database connection closed.")
-
-
-class AsyncQueueIterator:
-    """Asynchronous iterator for asyncio.Queue."""
-
-    def __init__(self, queue: asyncio.Queue) -> None:
-        self.queue = queue
-
-    def __aiter__(self) -> Self:
-        return self
-
-    async def __anext__(self) -> Tuple[bytes, Tuple[str, int], datetime]:
-        try:
-            # Use a short timeout to allow checking shutdown conditions
-            return await asyncio.wait_for(
-                self.queue.get(), timeout=BATCH_TIMEOUT
-            )
-        except asyncio.TimeoutError:
-            raise StopAsyncIteration
 
 
 async def run_server() -> None:
