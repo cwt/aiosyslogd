@@ -13,13 +13,16 @@ import aiosqlite
 import asyncio
 import re
 import signal
+import sys
 
 uvloop: ModuleType | None = None
 try:
-    import uvloop
-
+    if sys.platform == "win32":
+        import winloop as uvloop
+    else:
+        import uvloop
 except ImportError:
-    pass
+    pass  # uvloop or winloop is an optional for speedup, not a requirement
 
 # --- Configuration ---
 # Load configuration from aiosyslogd.toml
