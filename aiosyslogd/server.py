@@ -226,11 +226,7 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
 
         try:
             async with self.db.cursor() as cursor:
-                # Execute the insert and FTS sync concurrently
-                await asyncio.gather(
-                    cursor.executemany(sql_command, batch),
-                    self.sync_fts_for_month(year_month),
-                )
+                await cursor.executemany(sql_command, batch)
             await self.db.commit()
             if DEBUG:
                 print(f"Successfully wrote batch of {len(batch)} messages.")
@@ -284,28 +280,6 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
                 await self.db.commit()
         return table_name
 
-    async def sync_fts_for_month(self, year_month: str) -> None:
-        """Syncs the FTS index for a given month."""
-        if (
-            not SQL_WRITE
-            or (self._shutting_down and not self.db)
-            or not self.db
-        ):
-            return
-
-        fts_table_name: str = f"SystemEventsFTS{year_month}"
-        try:
-            async with self.db.cursor() as cursor:
-                await cursor.execute(
-                    f"INSERT INTO {fts_table_name}({fts_table_name}) VALUES('rebuild')"
-                )
-            await self.db.commit()
-            if DEBUG:
-                print(f"Synced FTS table {fts_table_name}.")
-        except Exception as e:
-            if DEBUG and not self._shutting_down:
-                print(f"Failed to sync FTS table {fts_table_name}: {e}")
-
     async def shutdown(self) -> None:
         """Gracefully shuts down the server."""
         print("\nShutting down server...")
@@ -317,9 +291,25 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         if self._db_writer_task:
             print("Waiting for database writer to finish...")
             # Give the writer a moment to process the last items
-            await asyncio.sleep(0.1)
-            # The writer task loop will exit gracefully.
-            await self._db_writer_task
+            self._db_writer_task.cancel()
+            try:
+                await self._db_writer_task
+            except asyncio.CancelledError:
+                pass  # Task cancellation is expected
+
+        # Process any final messages in the queue
+        if SQL_WRITE and not self._message_queue.empty():
+            print(
+                f"Writing {self._message_queue.qsize()} remaining messages from queue..."
+            )
+            final_batch = []
+            while not self._message_queue.empty():
+                data, addr, received_at = self._message_queue.get_nowait()
+                params = self.process_datagram(data, addr, received_at)
+                if params:
+                    final_batch.append(params)
+            if final_batch:
+                await self.write_batch_to_db(final_batch)
 
         if self.db:  # Close the database connection if it exists
             await self.db.close()
