@@ -341,8 +341,12 @@ async def run_server() -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop_event.set)
 
+    def protocol_factory() -> SyslogUDPServer:
+        """Returns the server instance for the endpoint."""
+        return server
+
     transport, _ = await loop.create_datagram_endpoint(
-        lambda: server, local_addr=(server.host, server.port)
+        protocol_factory, local_addr=(server.host, server.port)
     )
     print(f"Server is running. Press Ctrl+C to stop.")
 
