@@ -331,15 +331,9 @@ class AsyncQueueIterator:
 async def run_server() -> None:
     """Sets up and runs the server until a shutdown signal is received."""
     loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
-    # Use the async factory to create the server instance
     server: SyslogUDPServer = await SyslogUDPServer.create(
         host=BINDING_IP, port=BINDING_PORT
     )
-
-    # Setup signal handlers
-    stop_event = asyncio.Event()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, stop_event.set)
 
     def protocol_factory() -> SyslogUDPServer:
         """Returns the server instance for the endpoint."""
@@ -351,7 +345,16 @@ async def run_server() -> None:
     print(f"Server is running. Press Ctrl+C to stop.")
 
     try:
-        await stop_event.wait()
+        if sys.platform == "win32":
+            # On Windows, signal handlers are not supported. We wait indefinitely
+            # and rely on KeyboardInterrupt to be caught by asyncio.run().
+            await asyncio.Future()
+        else:
+            # On POSIX systems, we can wait for a signal.
+            stop_event = asyncio.Event()
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                loop.add_signal_handler(sig, stop_event.set)
+            await stop_event.wait()
     finally:
         print("\nShutdown signal received.")
         transport.close()
