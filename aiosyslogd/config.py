@@ -12,12 +12,18 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "debug": False,
         "log_dump": False,
     },
-    "sqlite": {
-        "enabled": True,
-        "database": "syslog.sqlite3",
+    "database": {
+        "driver": "sqlite",  # sqlite is the default driver
         "batch_size": 1000,
         "batch_timeout": 5,
         "sql_dump": False,
+        "sqlite": {
+            "database": "syslog.sqlite3",
+        },
+        "meilisearch": {
+            "url": "http://127.0.0.1:7700",
+            "api_key": None,
+        },
     },
 }
 

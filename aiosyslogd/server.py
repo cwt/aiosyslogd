@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-## Syslog Server in Python with asyncio and SQLite.
+## Syslog Server in Python with asyncio and pluggable DB drivers.
 
 from . import config
+from .db import BaseDatabase
 from .priority import SyslogMatrix
-from .rfc5424 import RFC5424_PATTERN
-from .rfc5424 import normalize_to_rfc5424
+from .rfc5424 import RFC5424_PATTERN, normalize_to_rfc5424
 from datetime import datetime
+from importlib import import_module
 from types import ModuleType
 from typing import Dict, Any, Tuple, List, Type, Self
-import aiosqlite
 import asyncio
 import re
 import signal
@@ -25,7 +25,6 @@ except ImportError:
     pass  # uvloop or winloop is an optional for speedup, not a requirement
 
 # --- Configuration ---
-# Load configuration from aiosyslogd.toml
 CFG = config.load_config()
 
 # Server settings
@@ -34,26 +33,44 @@ LOG_DUMP: bool = CFG.get("server", {}).get("log_dump", False)
 BINDING_IP: str = CFG.get("server", {}).get("bind_ip", "0.0.0.0")
 BINDING_PORT: int = int(CFG.get("server", {}).get("bind_port", 5140))
 
-# SQLite settings
-SQL_WRITE: bool = CFG.get("sqlite", {}).get("enabled", False)
-SQL_DUMP: bool = CFG.get("sqlite", {}).get("sql_dump", False)
-SQLITE_DB_PATH: str = CFG.get("sqlite", {}).get("database", "syslog.sqlite3")
-BATCH_SIZE: int = int(CFG.get("sqlite", {}).get("batch_size", 1000))
-BATCH_TIMEOUT: int = int(CFG.get("sqlite", {}).get("batch_timeout", 5))
+# Database settings
+DB_CFG = CFG.get("database", {})
+DB_DRIVER: str = DB_CFG.get("driver", "sqlite")
+BATCH_SIZE: int = int(DB_CFG.get("batch_size", 1000))
+BATCH_TIMEOUT: int = int(DB_CFG.get("batch_timeout", 5))
+
+
+def get_db_driver() -> BaseDatabase | None:
+    """Dynamically imports and returns a database driver instance."""
+    if DB_DRIVER is None:
+        return None
+    try:
+        driver_module = import_module(f".db.{DB_DRIVER}", package="aiosyslogd")
+        driver_class = getattr(driver_module, f"{DB_DRIVER.capitalize()}Driver")
+        driver_config = DB_CFG.get(DB_DRIVER, {})
+        # Pass general db settings to the driver as well
+        driver_config["debug"] = DEBUG
+        driver_config["sql_dump"] = DB_CFG.get("sql_dump", False)
+        return driver_class(driver_config)
+    except (ImportError, AttributeError) as e:
+        print(f"Error loading database driver '{DB_DRIVER}': {e}")
+        raise SystemExit("Aborting due to invalid database driver.")
 
 
 class SyslogUDPServer(asyncio.DatagramProtocol):
-    """An asynchronous Syslog UDP server with batch database writing."""
+    """An asynchronous Syslog UDP server with pluggable DB drivers."""
 
     syslog_matrix: SyslogMatrix = SyslogMatrix()
 
-    def __init__(self, host: str, port: int) -> None:
+    def __init__(
+        self, host: str, port: int, db_driver: BaseDatabase | None
+    ) -> None:
         """Initializes the SyslogUDPServer instance."""
         self.host: str = host
         self.port: int = port
+        self.db = db_driver
         self.loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
         self.transport: asyncio.DatagramTransport | None = None
-        self.db: aiosqlite.Connection | None = None
         self._shutting_down: bool = False
         self._db_writer_task: asyncio.Task[None] | None = None
         self._message_queue: asyncio.Queue[
@@ -63,12 +80,13 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
     @classmethod
     async def create(cls: Type[Self], host: str, port: int) -> Self:
         """Creates and initializes the SyslogUDPServer instance."""
-        server = cls(host, port)
+        db_driver = get_db_driver()
+        server = cls(host, port, db_driver)
         print(f"aiosyslogd starting on UDP {host}:{port}...")
-        if SQL_WRITE:
-            print(f"SQLite writing ENABLED to '{SQLITE_DB_PATH}.")
+        if server.db:
+            print(f"Using '{DB_DRIVER}' database driver.")
             print(f"Batch size: {BATCH_SIZE}, Timeout: {BATCH_TIMEOUT}s")
-            await server.connect_to_sqlite()
+            await server.db.connect()
         if DEBUG:
             print("Debug mode is ON.")
         return server
@@ -76,7 +94,7 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         """Handles the connection made event."""
         self.transport = transport  # type: ignore
-        if SQL_WRITE and not self._db_writer_task:
+        if self.db and not self._db_writer_task:
             self._db_writer_task = self.loop.create_task(self.database_writer())
             print("Database writer task started.")
 
@@ -87,55 +105,40 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         self._message_queue.put_nowait((data, addr, datetime.now()))
 
     def error_received(self, exc: Exception) -> None:
-        """Handles errors received from the transport."""
         if DEBUG:
             print(f"Error received: {exc}")
 
     def connection_lost(self, exc: Exception | None) -> None:
-        """Handles connection loss."""
         if DEBUG:
             print(f"Connection lost: {exc}")
 
     async def database_writer(self) -> None:
-        """
-        A dedicated task that runs continuously to write messages to the
-        database in batches.
-        """
+        """A dedicated task to write messages to the database in batches."""
         batch: List[Dict[str, Any]] = []
-        while True:
+        while not self._shutting_down:
             try:
-                # Wait for the next message with a timeout.
                 data, addr, received_at = await asyncio.wait_for(
                     self._message_queue.get(), timeout=BATCH_TIMEOUT
                 )
-
                 params = self.process_datagram(data, addr, received_at)
                 if params:
                     batch.append(params)
                 self._message_queue.task_done()
-
-                # If the batch is full, write it to the database.
                 if len(batch) >= BATCH_SIZE:
-                    await self.write_batch_to_db(batch)
+                    if self.db:
+                        await self.db.write_batch(batch)
                     batch.clear()
-
             except asyncio.TimeoutError:
-                # If a timeout occurs, it means the queue has been idle.
-                # Write any remaining messages in the batch.
-                if batch:
-                    await self.write_batch_to_db(batch)
-                    batch.clear()
-
-                # If the server is shutting down and the queue is empty,
-                # we can safely exit the writer task.
-                if self._shutting_down and self._message_queue.empty():
-                    break
+                if batch and self.db:
+                    await self.db.write_batch(batch)
+                batch.clear()
+            except asyncio.CancelledError:
+                break
             except Exception as e:
                 if DEBUG:
-                    print(
-                        f"[DB-WRITER-ERROR] An unexpected error occurred: {e}"
-                    )
-
+                    print(f"[DB-WRITER-ERROR] {e}")
+        if batch and self.db:
+            await self.db.write_batch(batch)  # Final write
         print("Database writer task finished.")
 
     def process_datagram(
@@ -152,168 +155,60 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         processed_data: str = normalize_to_rfc5424(
             decoded_data, debug_mode=DEBUG
         )
-
-        if LOG_DUMP and not SQL_DUMP:
+        if LOG_DUMP:
             print(
                 f"\n[{received_at}] FROM {address[0]}:\n  RFC5424 DATA: {processed_data}"
             )
 
-        try:
-            match: re.Match[str] | None = RFC5424_PATTERN.match(processed_data)
-            if not match:
-                if DEBUG:
-                    print(f"Failed to parse as RFC-5424: {processed_data}")
-                pri_end: int = processed_data.find(">")
-                code: str = processed_data[1:pri_end] if pri_end != -1 else "14"
-                Facility, Priority = self.syslog_matrix.decode_int(code)
-                FromHost, DeviceReportedTime = address[0], received_at
-                SysLogTag, ProcessID, Message = "UNKNOWN", "0", processed_data
-            else:
-                parts: Dict[str, Any] = match.groupdict()
-                code = parts["pri"]
-                Facility, Priority = self.syslog_matrix.decode_int(code)
-                try:
-                    ts_str: str = parts["ts"].upper().replace("Z", "+00:00")
-                    DeviceReportedTime = datetime.fromisoformat(ts_str)
-                except (ValueError, TypeError):
-                    DeviceReportedTime = received_at
-                FromHost = parts["host"] if parts["host"] != "-" else address[0]
-                SysLogTag = parts["app"] if parts["app"] != "-" else "UNKNOWN"
-                ProcessID = parts["pid"] if parts["pid"] != "-" else "0"
-                Message = parts["msg"].strip()
-
+        match: re.Match[str] | None = RFC5424_PATTERN.match(processed_data)
+        if not match:
+            if DEBUG:
+                print(f"Failed to parse as RFC-5424: {processed_data}")
+            pri_end: int = processed_data.find(">")
+            code: str = processed_data[1:pri_end] if pri_end != -1 else "14"
+            Facility, Priority = self.syslog_matrix.decode_int(code)
             return {
                 "Facility": Facility,
                 "Priority": Priority,
-                "FromHost": FromHost,
+                "FromHost": address[0],
                 "InfoUnitID": 1,
                 "ReceivedAt": received_at,
-                "DeviceReportedTime": DeviceReportedTime,
-                "SysLogTag": SysLogTag,
-                "ProcessID": ProcessID,
-                "Message": Message,
+                "DeviceReportedTime": received_at,
+                "SysLogTag": "UNKNOWN",
+                "ProcessID": "0",
+                "Message": processed_data,
             }
-        except Exception as e:
-            if DEBUG:
-                print(
-                    f"CRITICAL PARSE FAILURE on: {processed_data}\nError: {e}"
-                )
-            return None
 
-    async def write_batch_to_db(self, batch: List[Dict[str, Any]]) -> None:
-        """Writes a batch of messages to the database."""
-        if not batch or (self._shutting_down and not self.db) or not self.db:
-            return
-
-        year_month: str = batch[0]["ReceivedAt"].strftime("%Y%m")
-        table_name: str = await self.create_monthly_table(year_month)
-
-        sql_command: str = (
-            f"INSERT INTO {table_name} (Facility, Priority, FromHost, InfoUnitID, "
-            "ReceivedAt, DeviceReportedTime, SysLogTag, ProcessID, Message) VALUES "
-            "(:Facility, :Priority, :FromHost, :InfoUnitID, :ReceivedAt, "
-            ":DeviceReportedTime, :SysLogTag, :ProcessID, :Message)"
-        )
-
-        if SQL_DUMP:
-            print(f"\n   SQL: {sql_command}")
-            summary: str = (
-                f"PARAMS: {batch[0]} and {len(batch) - 1} more logs..."
-                if len(batch) > 1
-                else f"PARAMS: {batch[0]}"
-            )
-            print(f"  {summary}")
-
+        parts: Dict[str, Any] = match.groupdict()
         try:
-            async with self.db.cursor() as cursor:
-                await cursor.executemany(sql_command, batch)
-            await self.db.commit()
-            if DEBUG:
-                print(f"Successfully wrote batch of {len(batch)} messages.")
-        except Exception as e:
-            if DEBUG and not self._shutting_down:
-                print(f"\nBATCH SQL_ERROR: {e}")
-                await self.db.rollback()
+            ts_str: str = parts["ts"].upper().replace("Z", "+00:00")
+            device_reported_time = datetime.fromisoformat(ts_str)
+        except (ValueError, TypeError):
+            device_reported_time = received_at
 
-    async def connect_to_sqlite(self) -> None:
-        """Initializes the database connection."""
-        self.db = await aiosqlite.connect(SQLITE_DB_PATH)
-        await self.db.execute("PRAGMA journal_mode=WAL")
-        await self.db.execute("PRAGMA auto_vacuum = FULL")
-        await self.db.commit()
-        print(f"SQLite database '{SQLITE_DB_PATH}' connected.")
-
-    async def create_monthly_table(self, year_month: str) -> str:
-        """Creates tables for the given month if they don't exist."""
-        table_name: str = f"SystemEvents{year_month}"
-        fts_table_name: str = f"SystemEventsFTS{year_month}"
-        if not self.db:
-            raise ConnectionError("Database is not connected.")
-
-        async with self.db.cursor() as cursor:
-            await cursor.execute(
-                "SELECT name FROM sqlite_master "
-                f"WHERE type='table' AND name='{table_name}'"
-            )
-            if await cursor.fetchone() is None:
-                if DEBUG:
-                    print(
-                        "Creating new tables for "
-                        f"{year_month}: {table_name}, {fts_table_name}"
-                    )
-                await self.db.execute(
-                    f"""CREATE TABLE {table_name} (
-                    ID INTEGER PRIMARY KEY AUTOINCREMENT, Facility INTEGER,
-                    Priority INTEGER, FromHost TEXT, InfoUnitID INTEGER,
-                    ReceivedAt TIMESTAMP, DeviceReportedTime TIMESTAMP,
-                    SysLogTag TEXT, ProcessID TEXT, Message TEXT
-                )"""
-                )
-                await self.db.execute(
-                    f"CREATE INDEX idx_ReceivedAt_{year_month} "
-                    f"ON {table_name} (ReceivedAt)"
-                )
-                await self.db.execute(
-                    f"CREATE VIRTUAL TABLE {fts_table_name} "
-                    f"USING fts5(Message, content='{table_name}', content_rowid='ID')"
-                )
-                await self.db.commit()
-        return table_name
+        return {
+            "Facility": self.syslog_matrix.decode_int(parts["pri"])[0],
+            "Priority": self.syslog_matrix.decode_int(parts["pri"])[1],
+            "FromHost": parts["host"] if parts["host"] != "-" else address[0],
+            "InfoUnitID": 1,
+            "ReceivedAt": received_at,
+            "DeviceReportedTime": device_reported_time,
+            "SysLogTag": parts["app"] if parts["app"] != "-" else "UNKNOWN",
+            "ProcessID": parts["pid"] if parts["pid"] != "-" else "0",
+            "Message": parts["msg"].strip(),
+        }
 
     async def shutdown(self) -> None:
         """Gracefully shuts down the server."""
         print("\nShutting down server...")
         self._shutting_down = True
-
         if self.transport:
             self.transport.close()
-
         if self._db_writer_task:
-            print("Waiting for database writer to finish...")
-            # Give the writer a moment to process the last items
             self._db_writer_task.cancel()
-            try:
-                await self._db_writer_task
-            except asyncio.CancelledError:
-                pass  # Task cancellation is expected
-
-        # Process any final messages in the queue
-        if SQL_WRITE and not self._message_queue.empty():
-            print(
-                f"Writing {self._message_queue.qsize()} remaining messages from queue..."
-            )
-            final_batch = []
-            while not self._message_queue.empty():
-                data, addr, received_at = self._message_queue.get_nowait()
-                params = self.process_datagram(data, addr, received_at)
-                if params:
-                    final_batch.append(params)
-            if final_batch:
-                await self.write_batch_to_db(final_batch)
-
-        if self.db:  # Close the database connection if it exists
+            await self._db_writer_task
+        if self.db:
             await self.db.close()
-            print("Database connection closed.")
 
 
 async def run_server() -> None:
@@ -324,7 +219,6 @@ async def run_server() -> None:
     )
 
     def protocol_factory() -> SyslogUDPServer:
-        """Returns the server instance for the endpoint."""
         return server
 
     transport, _ = await loop.create_datagram_endpoint(
@@ -334,11 +228,8 @@ async def run_server() -> None:
 
     try:
         if sys.platform == "win32":
-            # On Windows, signal handlers are not supported. We wait indefinitely
-            # and rely on KeyboardInterrupt to be caught by asyncio.run().
             await asyncio.Future()
         else:
-            # On POSIX systems, we can wait for a signal.
             stop_event = asyncio.Event()
             for sig in (signal.SIGINT, signal.SIGTERM):
                 loop.add_signal_handler(sig, stop_event.set)
@@ -354,7 +245,6 @@ def main() -> None:
     if uvloop:
         print("Using uvloop for the event loop.")
         uvloop.install()
-
     try:
         asyncio.run(run_server())
     except (KeyboardInterrupt, asyncio.CancelledError):

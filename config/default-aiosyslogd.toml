@@ -1,12 +1,20 @@
 [server]
 bind_ip = "0.0.0.0"
 bind_port = 5140
-debug = false
+debug = true
 log_dump = false
 
-[sqlite]
-enabled = true
-database = "syslog.sqlite3"
+[database]
+# Driver can be "sqlite", or "meilisearch"
+driver = "sqlite"
 batch_size = 1000
 batch_timeout = 5
-sql_dump = false
+sql_dump = false # Not applicable for Meilisearch
+
+[database.sqlite]
+database = "syslog.sqlite3"
+
+[database.meilisearch]
+url = "http://127.0.0.1:7700"
+# Set an API key if you have one configured for Meilisearch
+api_key = None

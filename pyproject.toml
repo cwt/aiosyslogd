@@ -7,9 +7,10 @@ authors = [
 ]
 license = {text = "MIT"}
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<4.0"
 dependencies = [
     "aiosqlite (>=0.21.0)",
+    "meilisearch-python-sdk (>=4.7.0)",
     "toml (>=0.10.2)"
 ]
 

@@ -3,3 +3,5 @@ dist
 aiosyslogd.toml
 syslog.db
 syslog.db-*
+syslog.sqlite3
+syslog.sqlite3-*
