@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-import asyncio
-from datetime import datetime
-from typing import Any, Dict, List, Set, Tuple
+from . import BaseDatabase
 from meilisearch_python_sdk import AsyncClient
 from meilisearch_python_sdk.errors import MeilisearchApiError
-from meilisearch_python_sdk.models.settings import MeilisearchSettings
-
-from . import BaseDatabase
+from meilisearch_python_sdk.models.settings import (
+    MeilisearchSettings,
+    ProximityPrecision,
+)
+from typing import Any, Dict, List, Set
+import asyncio
 
 
 class MeilisearchDriver(BaseDatabase):
@@ -84,11 +85,11 @@ class MeilisearchDriver(BaseDatabase):
                     "ProcessID",
                 ],
                 sortable_attributes=["ReceivedAt", "DeviceReportedTime"],
-                proximity_precision="byAttribute",  # Optimize for disk space
+                proximity_precision=ProximityPrecision.BY_ATTRIBUTE,
             )
 
-            task = await index.update_settings(settings)
-            await self.client.wait_for_task(task.task_uid)
+            settings_task = await index.update_settings(settings)
+            await self.client.wait_for_task(settings_task.task_uid)
 
             self._indexes_created.add(index_name)
             if self.debug:
@@ -123,8 +124,8 @@ class MeilisearchDriver(BaseDatabase):
             for index_name, docs in batches_by_index.items():
                 await self._ensure_monthly_index(index_name)
                 index = self.client.index(index_name)
-                task = await index.add_documents(docs)
-                tasks_to_wait.append(task.task_uid)
+                doc_add_task = await index.add_documents(docs)
+                tasks_to_wait.append(doc_add_task.task_uid)
 
             # Step 2: Wait for Meilisearch to confirm all tasks have been processed
             if self.debug and tasks_to_wait:
@@ -139,11 +140,11 @@ class MeilisearchDriver(BaseDatabase):
             completed_tasks = await asyncio.gather(*wait_tasks)
 
             # Step 3: Check if any tasks failed.
-            for task in completed_tasks:
-                if task.status != "succeeded":
+            for task_result in completed_tasks:
+                if task_result.status != "succeeded":
                     if self.debug:
                         print(
-                            f"MEILISEARCH_TASK_ERROR: Task {task.uid} failed: {task.error}"
+                            f"MEILISEARCH_TASK_ERROR: Task {task_result.uid} failed: {task_result.error}"
                         )
 
             if self.debug:
