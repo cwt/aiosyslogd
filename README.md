@@ -92,6 +92,8 @@ When a custom path is provided, the server will **not** create a default file if
 | sqlite | batch\_timeout | The maximum time in seconds to wait before writing an incomplete batch. | 5 |
 | sqlite | sql\_dump | Set to true to print the SQL command and parameters before execution. | false |
 
+**Note:** when `sql_dump` is enabled, `log_dump` will be disabled.
+
 ## Integrating with rsyslog
 
 You can use **rsyslog** as a robust, battle-tested frontend for **aiosyslogd**. This is useful for receiving logs on the standard privileged port (514) and then forwarding them to **aiosyslogd** running as a non-privileged user on a different port.
