@@ -129,3 +129,46 @@ async def test_process_datagram_non_rfc5424(server):
     assert params["FromHost"] == "192.168.1.1"
     assert params["SysLogTag"] == "UNKNOWN"
     assert params["Message"] == "<14>Invalid syslog message"
+
+
+@pytest.mark.asyncio
+async def test_debug_mode_invalid_datagram(server, capsys):
+    """Tests that a debug message is printed when an invalid datagram is received in DEBUG mode."""
+    with patch("aiosyslogd.server.DEBUG", True):
+        test_data = b"this is not a syslog message"  # Non-RFC5424 message
+        addr = ("192.168.1.1", 12345)
+        received_at = datetime(2025, 6, 11, 12, 0, 0)
+
+        # Process the datagram
+        params = server.process_datagram(test_data, addr, received_at)
+
+        # Capture console output and verify debug message
+        captured = capsys.readouterr()
+        assert (
+            "Failed to parse as RFC-5424: this is not a syslog message"
+            in captured.out
+        )
+        # Ensure params are still returned for fallback processing
+        assert params is not None
+        assert params["Message"] == "this is not a syslog message"
+
+
+@pytest.mark.asyncio
+async def test_debug_mode_decoding_error(server, capsys):
+    """Tests that a debug message is printed when a decoding error occurs in DEBUG mode."""
+    with patch("aiosyslogd.server.DEBUG", True):
+        test_data = b"\xff\xfe"  # Invalid UTF-8 encoding
+        addr = ("192.168.1.1", 12345)
+        received_at = datetime(2025, 6, 11, 12, 0, 0)
+
+        # Process the datagram
+        params = server.process_datagram(test_data, addr, received_at)
+
+        # Capture console output and verify debug message
+        captured = capsys.readouterr()
+        assert (
+            "Cannot decode message from ('192.168.1.1', 12345): b'\\xff\\xfe'"
+            in captured.out
+        )
+        # Ensure no params are returned due to decoding failure
+        assert params is None

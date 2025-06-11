@@ -1,4 +1,5 @@
 import pytest
+import re
 from datetime import datetime
 from unittest.mock import patch
 
@@ -111,3 +112,45 @@ class TestRfc5424Conversion:
 
         # Check that the year in the timestamp is correct
         assert "2024-12-10T" in normalized
+
+
+def test_normalize_to_rfc5424_debug_mode(capsys):
+    """Tests that a debug message is printed when normalizing a non-syslog message in debug mode."""
+    message = "this is not a syslog message"
+    debug_mode = True
+
+    # Normalize the message
+    normalized = normalize_to_rfc5424(message, debug_mode)
+
+    # Capture console output and verify debug message
+    captured = capsys.readouterr()
+    assert (
+        "[RFC-CONVERT] Not an RFC 3164 message, returning original: this is not a syslog message"
+        in captured.out
+    )
+    # Ensure the message is returned unchanged
+    assert normalized == message
+
+
+def test_convert_rfc3164_to_rfc5424_timestamp_error(capsys):
+    """Tests that a debug message is printed when an RFC3164 timestamp cannot be parsed in debug mode."""
+    message = "<34>Feb 30 22:14:15 mymachine su: test"  # Invalid date (Feb 30)
+    debug_mode = True
+
+    # Convert the message
+    normalized = convert_rfc3164_to_rfc5424(message, debug_mode)
+
+    # Capture console output and verify debug message
+    captured = capsys.readouterr()
+    assert (
+        "[RFC-CONVERT] Could not parse RFC-3164 timestamp, using current time."
+        in captured.out
+    )
+    # Verify the output is RFC5424 with a current timestamp
+    parts = normalized.split()
+    assert parts[0] == "<34>1"
+    assert re.match(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z", parts[1]
+    )  # ISO timestamp
+    assert parts[2] == "mymachine"
+    assert parts[-1] == "test"
