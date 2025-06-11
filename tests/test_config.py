@@ -1,13 +1,10 @@
 import pytest
 from unittest.mock import patch, mock_open, MagicMock
 import toml
-import os
 
 # --- Import the module and constants to be tested ---
-from aiosyslogd import config
 from aiosyslogd.config import (
     load_config,
-    _create_default_config,
     DEFAULT_CONFIG,
 )
 

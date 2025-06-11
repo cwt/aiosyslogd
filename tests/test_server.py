@@ -2,7 +2,7 @@ import pytest
 import pytest_asyncio
 import asyncio
 from datetime import datetime
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 from aiosyslogd.server import SyslogUDPServer
 from aiosyslogd.db import BaseDatabase
 
