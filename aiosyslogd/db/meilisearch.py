@@ -71,9 +71,6 @@ class MeilisearchDriver(BaseDatabase):
             settings = MeilisearchSettings(
                 searchable_attributes=[
                     "Message",
-                    "FromHost",
-                    "SysLogTag",
-                    "ProcessID",
                 ],
                 filterable_attributes=[
                     "ReceivedAt",

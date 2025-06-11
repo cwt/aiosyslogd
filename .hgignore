@@ -1,7 +1,11 @@
+syntax: glob
+
+.coverage
 .mypy_cache
+.pytest_cache
 dist
 aiosyslogd.toml
-syslog.db
-syslog.db-*
-syslog.sqlite3
-syslog.sqlite3-*
+syslog*.db
+syslog*.db-*
+syslog*.sqlite3
+syslog*.sqlite3-*
