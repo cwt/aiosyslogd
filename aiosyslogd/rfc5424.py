@@ -61,11 +61,17 @@ def convert_rfc3164_to_rfc5424(message: str, debug_mode: bool = False) -> str:
 
     try:
         now: datetime = datetime.now()
+        # Add the current year to the string and the format to avoid the Python 3.13+ DeprecationWarning
+        date_string_with_year: str = (
+            f"{now.year} {parts['mon']} {parts['day']} {parts['hr']}:{parts['min']}:{parts['sec']}"
+        )
         dt_naive: datetime = datetime.strptime(
-            f"{parts['mon']} {parts['day']} {parts['hr']}:{parts['min']}:{parts['sec']}",
-            "%b %d %H:%M:%S",
-        ).replace(year=now.year)
+            date_string_with_year,
+            "%Y %b %d %H:%M:%S",
+        )
 
+        # If the parsed date is in the future, it must be from the previous year.
+        # This handles cases like a log from December being processed in January.
         if dt_naive > now:
             dt_naive = dt_naive.replace(year=now.year - 1)
 
@@ -90,6 +96,7 @@ def normalize_to_rfc5424(message: str, debug_mode: bool = False) -> str:
     """
     pri_end: int = message.find(">")
     if pri_end > 0 and len(message) > pri_end + 2:
+        # A valid RFC5424 message has a version '1' right after the priority tag
         if message[pri_end + 1] == "1" and message[pri_end + 2].isspace():
             return message
 
