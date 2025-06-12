@@ -159,7 +159,6 @@ async def test_write_batch_across_month_boundary(driver, tmp_db_path):
 async def test_fts_search_functionality(driver, tmp_db_path):
     """
     Tests that the FTS5 virtual table is created and can be searched.
-    Includes a manual rebuild to ensure robustness on buggy SQLite versions.
     """
     # 1. ARRANGE
     log_time = datetime(2025, 8, 1, 12, 0, 0)
@@ -173,14 +172,6 @@ async def test_fts_search_functionality(driver, tmp_db_path):
 
     # 2. ACT
     await driver.write_batch(log_batch)
-
-    # Force a rebuild for test robustness on buggy sqlite versions
-    rebuild_conn = await aiosqlite.connect(db_path)
-    await rebuild_conn.execute(
-        "INSERT INTO SystemEvents_FTS(SystemEvents_FTS) VALUES('rebuild')"
-    )
-    await rebuild_conn.commit()
-    await rebuild_conn.close()
 
     # 3. ASSERT
     conn = await aiosqlite.connect(

@@ -87,6 +87,28 @@ class SQLiteDriver(BaseDatabase):
                     f"CREATE VIRTUAL TABLE {fts_table_name} "
                     f"USING fts5(Message, content='{table_name}', content_rowid='ID')"
                 )
+                await self.db.execute(
+                    f"""CREATE TRIGGER {table_name}_insert AFTER INSERT ON {table_name}
+                    BEGIN
+                        INSERT INTO {fts_table_name}(rowid, Message)
+                        VALUES (new.ID, new.Message);
+                    END"""
+                )
+                await self.db.execute(
+                    f"""CREATE TRIGGER {table_name}_update AFTER UPDATE ON {table_name}
+                    BEGIN
+                        UPDATE {fts_table_name}
+                        SET Message = new.Message
+                        WHERE rowid = new.ID;
+                    END"""
+                )
+                await self.db.execute(
+                    f"""CREATE TRIGGER {table_name}_delete AFTER DELETE ON {table_name}
+                    BEGIN
+                        DELETE FROM {fts_table_name}
+                        WHERE rowid = old.ID;
+                    END"""
+                )
                 await self.db.commit()
 
     # NEW: Private helper method to handle writing a homogenous (single-month) batch.
