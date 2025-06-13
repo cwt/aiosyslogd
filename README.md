@@ -9,10 +9,10 @@ It features an optional integration with uvloop for a significant performance bo
 * **Asynchronous:** Built on asyncio to handle thousands of concurrent messages with minimal overhead.
 * **Fast:** Supports uvloop for a C-based event loop implementation, making it one of the fastest ways to run asyncio.
 * **Flexible Database Backends:**
-  * **SQLite Backend:** Optionally writes all incoming messages to a SQLite database with automatic monthly table management and FTS5 virtual tables for powerful search.
+  * **SQLite Backend:** Writes all incoming messages to a SQLite database. For easier maintenance and backup, it creates a separate database file for each month (e.g., `syslog_YYYYMM.sqlite3`). Each file contains a `SystemEvents` table and a corresponding `SystemEvents_FTS` virtual table using `FTS5` for powerful full-text search.
   * **Meilisearch Backend:** Optionally stores messages in Meilisearch, a fast and lightweight search engine, with automatic monthly indexes and advanced search capabilities like filtering, sorting, and proximity precision.
-* **Automatic Table/Index Management:** Creates new tables (SQLite) or indexes (Meilisearch) for each month (`SystemEventsYYYYMM`) to keep the database organized and fast.
-* **Full-Text Search:** Automatically maintains an `FTS5` virtual table (SQLite) or Meilisearch index for powerful and fast message searching.
+* **Automatic Table/Index Management:** Creates new database files (SQLite) or indexes (Meilisearch) for each month to keep the database organized and fast.
+* **Full-Text Search:** Automatically maintains an `FTS5` virtual table (`SystemEvents_FTS`) for SQLite or ully indexed Meilisearch backend for powerful and fast message searching.
 * **RFC5424 Conversion:** Includes a utility to convert older *RFC3164* formatted messages to the modern *RFC5424* format.
 * **Flexible Configuration:** Configure the server via a simple `aiosyslogd.toml` file.
 
@@ -211,4 +211,4 @@ Contributions are welcome! If you find a bug or have a feature request, please o
 
 ## License
 
-This project is licensed under the **MIT License**.
+This project is licensed under the **[MIT License](LICENSE)**.
