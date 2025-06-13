@@ -40,10 +40,23 @@ BATCH_SIZE: int = int(DB_CFG.get("batch_size", 1000))
 BATCH_TIMEOUT: int = int(DB_CFG.get("batch_timeout", 5))
 
 
+# --- Security: Define an allowlist of valid database drivers ---
+ALLOWED_DB_DRIVERS = {"sqlite", "meilisearch"}
+
+
 def get_db_driver() -> BaseDatabase | None:
     """Dynamically imports and returns a database driver instance."""
     if DB_DRIVER is None:
         return None
+    # --- SECURITY MITIGATION ---
+    # Validate the driver name against the allowlist to prevent code injection.
+    if DB_DRIVER not in ALLOWED_DB_DRIVERS:
+        print(
+            f"Error: Invalid database driver '{DB_DRIVER}' specified in configuration."
+        )
+        print(f"Allowed drivers are: {', '.join(ALLOWED_DB_DRIVERS)}")
+        raise SystemExit("Aborting due to invalid database driver.")
+    # --- END SECURITY MITIGATION ---
     try:
         driver_module = import_module(f".db.{DB_DRIVER}", package="aiosyslogd")
         driver_class = getattr(driver_module, f"{DB_DRIVER.capitalize()}Driver")
