@@ -213,7 +213,7 @@ async def test_database_writer_batch_full(server, mock_db):
 
     async def capture_side_effect(batch):
         nonlocal captured_batch
-        captured_batch = list(batch)  # Make a copy
+        captured_batch = list(batch)  # noqa -- make a copy to capture the state
 
     mock_db.write_batch.side_effect = capture_side_effect
 
