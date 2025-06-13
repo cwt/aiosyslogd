@@ -1,10 +1,10 @@
-import pytest
-import pytest_asyncio
-import asyncio
+from aiosyslogd.db import BaseDatabase
+from aiosyslogd.server import SyslogUDPServer, get_db_driver
 from datetime import datetime
 from unittest.mock import AsyncMock, patch, MagicMock
-from aiosyslogd.server import SyslogUDPServer, get_db_driver
-from aiosyslogd.db import BaseDatabase
+import asyncio
+import pytest
+import pytest_asyncio
 
 
 # Helper function to create a mock datagram

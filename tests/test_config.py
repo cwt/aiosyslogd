@@ -1,5 +1,5 @@
-import pytest
 from unittest.mock import patch, mock_open, MagicMock
+import pytest
 import toml
 
 # --- Import the module and constants to be tested ---

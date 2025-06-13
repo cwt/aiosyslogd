@@ -1,6 +1,6 @@
-import pytest
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch, MagicMock
+import pytest
 
 # --- Import the real MeilisearchDriver from the application source code ---
 # This assumes your project is structured so pytest can find the aiosyslogd package.

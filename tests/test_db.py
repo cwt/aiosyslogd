@@ -1,6 +1,6 @@
-import pytest
 from aiosyslogd.db import BaseDatabase
 from typing import Any, Dict, List
+import pytest
 
 # --- Test Suite for BaseDatabase ---
 

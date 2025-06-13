@@ -1,7 +1,7 @@
-import pytest
-import re
 from datetime import datetime
 from unittest.mock import patch
+import pytest
+import re
 
 # --- Import the classes and functions to be tested ---
 from aiosyslogd.priority import SyslogMatrix
