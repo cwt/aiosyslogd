@@ -16,7 +16,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "database": {
         "driver": "sqlite",  # sqlite is the default driver
-        "batch_size": 1000,
+        "batch_size": 100,
         "batch_timeout": 5,
         "sql_dump": False,
         "sqlite": {
