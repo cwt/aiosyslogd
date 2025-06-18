@@ -4,7 +4,6 @@
 
 from .config import load_config
 from datetime import datetime
-
 from loguru import logger
 from quart import Quart, render_template, request, abort, Response
 from types import ModuleType
@@ -32,29 +31,22 @@ CFG: Dict[str, Any] = load_config()
 WEB_SERVER_CFG: Dict[str, Any] = CFG.get("web_server", {})
 DEBUG: bool = WEB_SERVER_CFG.get("debug", False)
 
+# --- Logger Configuration ---
+# Configure the logger output format to match Quart default format.
+log_level = "DEBUG" if DEBUG else "INFO"
+logger.remove()
+logger.add(
+    sys.stderr,
+    format="[{time:YYYY-MM-DD HH:mm:ss ZZ}] [{process}] [{level}] {message}",
+    level=log_level,
+)
 
 # --- Quart Application ---
 app: Quart = Quart(__name__)
 # Enable the 'do' extension for the template environment
 app.jinja_env.add_extension("jinja2.ext.do")
-
-
 # Replace Quart's logger with our configured logger.
-# --- Logger Configuration ---
-def _setup_logger() -> None:
-    """Sets up the logger with a specific format and level."""
-    # Configure the logger output format to match Quart default format.
-    log_level = "DEBUG" if DEBUG else "INFO"
-    logger.remove()
-    logger.add(
-        sys.stderr,
-        format="[{time:YYYY-MM-DD HH:mm:ss ZZ}] [{process}] [{level}] {message}",
-        level=log_level,
-    )
-    app.logger = logger
-
-
-_setup_logger()
+app.logger = logger  # type: ignore[assignment]
 
 
 # --- Datetime Type Adapters for SQLite ---
@@ -274,7 +266,7 @@ async def index() -> str | Response:
         context["query_time"] = time.perf_counter() - start_time
     except (aiosqlite.OperationalError, aiosqlite.DatabaseError) as e:
         context["error"] = str(e)
-        app.logger.opt(exception=True).error(
+        app.logger.opt(exception=True).error(  # type: ignore[attr-defined]
             f"Database query failed for {context['selected_db']}"
         )
 
