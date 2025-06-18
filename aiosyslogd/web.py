@@ -198,38 +198,49 @@ async def startup() -> None:
 @app.route("/")
 async def index() -> str | Response:
     """Main route for displaying and searching logs."""
-    available_dbs: List[str] = get_available_databases()
-    if not available_dbs:
-        return await render_template(
-            "index.html",
-            error="No SQLite database files found. Ensure `aiosyslogd` has run and created logs.",
+    context: Dict[str, Any] = {
+        "logs": [],
+        "total_logs": 0,
+        "query_time": 0.0,
+        "search_query": request.args.get("q", "").strip(),
+        "available_dbs": get_available_databases(),
+        "selected_db": None,
+        "error": None,
+        "page_info": {},
+        "filters": {
+            key: request.args.get(key, "").strip()
+            for key in ["from_host", "received_at_min", "received_at_max"]
+        },
+        "debug_query": "",
+        "request": request,
+    }
+
+    if not context["available_dbs"]:
+        context["error"] = (
+            "No SQLite database files found. Ensure `aiosyslogd` has run and created logs."
         )
+        return await render_template("index.html", **context)
 
     # --- Get parameters from request ---
-    selected_db: str = request.args.get("db_file", available_dbs[0])
-    search_query: str = request.args.get("q", "").strip()
+    context["selected_db"] = request.args.get(
+        "db_file", context["available_dbs"][0]
+    )
     last_id: int | None = request.args.get("last_id", type=int)
     page_size: int = 50
 
-    filter_keys = ["from_host", "received_at_min", "received_at_max"]
-    filters: Dict[str, str] = {
-        key: request.args.get(key, "").strip() for key in filter_keys
-    }
-
-    if selected_db not in available_dbs:
+    if context["selected_db"] not in context["available_dbs"]:
         abort(404, "Database file not found.")
 
     # --- Build Query ---
-    query_parts = build_log_query(search_query, filters, last_id, page_size)
-    query_error: str | None = None
-    logs: List[aiosqlite.Row] = []
-    total_logs: int | None = None
-    query_time: float | None = None
+    query_parts = build_log_query(
+        context["search_query"], context["filters"], last_id, page_size
+    )
+    context["debug_query"] = query_parts["debug_query"]
 
     # --- Execute Query ---
     try:
         start_time: float = time.perf_counter()
-        db_uri: str = f"file:{selected_db}?mode=ro"
+        db_uri: str = f"file:{context['selected_db']}?mode=ro"
         async with aiosqlite.connect(
             db_uri,
             uri=True,
@@ -241,43 +252,33 @@ async def index() -> str | Response:
             ) as cursor:
                 result = await cursor.fetchone()
                 if result:
-                    total_logs = result[0]
+                    context["total_logs"] = result[0]
             async with conn.execute(
                 query_parts["main_sql"], query_parts["main_params"]
             ) as cursor:
-                logs = list(await cursor.fetchall())
-        query_time = time.perf_counter() - start_time
+                context["logs"] = await cursor.fetchall()
+        context["query_time"] = time.perf_counter() - start_time
     except (aiosqlite.OperationalError, aiosqlite.DatabaseError) as e:
-        query_error = str(e)
+        context["error"] = str(e)
         logger.opt(exception=True).error(
-            f"Database query failed for {selected_db}"
+            f"Database query failed for {context['selected_db']}"
         )
 
     # --- Prepare Pagination & Rendering ---
-    has_next_page: bool = len(logs) > page_size
+    has_next_page: bool = len(context["logs"]) > page_size
     next_last_id: int | None = (
-        logs[page_size - 1]["ID"] if logs and has_next_page else None
+        context["logs"][page_size - 1]["ID"]
+        if context["logs"] and has_next_page
+        else None
     )
-    page_info: Dict[str, Any] = {
+    context["page_info"] = {
         "has_next_page": has_next_page,
         "next_last_id": next_last_id,
         "prev_last_id": None,
     }
+    context["logs"] = context["logs"][:page_size]
 
-    return await render_template(
-        "index.html",
-        logs=logs[:page_size],
-        total_logs=total_logs,
-        query_time=query_time,
-        search_query=search_query,
-        available_dbs=available_dbs,
-        selected_db=selected_db,
-        error=query_error,
-        page_info=page_info,
-        filters=filters,
-        request=request,
-        debug_query=query_parts["debug_query"],
-    )
+    return await render_template("index.html", **context)
 
 
 def main() -> None:
@@ -302,6 +303,9 @@ def main() -> None:
     host: str = server_cfg.get("bind_ip", "127.0.0.1")
     port: int = server_cfg.get("bind_port", 5141)
     debug: bool = server_cfg.get("debug", False)
+
+    if debug:
+        logger.level("DEBUG")
 
     logger.info(f"Starting aiosyslogd-web interface on http://{host}:{port}")
     if uvloop:

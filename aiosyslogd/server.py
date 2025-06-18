@@ -8,13 +8,13 @@ from .priority import SyslogMatrix
 from .rfc5424 import RFC5424_PATTERN, normalize_to_rfc5424
 from datetime import datetime
 from importlib import import_module
+from loguru import logger
 from types import ModuleType
 from typing import Dict, Any, Tuple, List, Type, Self
 import asyncio
 import re
 import signal
 import sys
-from loguru import logger
 
 uvloop: ModuleType | None = None
 try:
@@ -29,10 +29,11 @@ except ImportError:
 CFG = config.load_config()
 
 # Server settings
-DEBUG: bool = CFG.get("server", {}).get("debug", False)
-LOG_DUMP: bool = CFG.get("server", {}).get("log_dump", False)
-BINDING_IP: str = CFG.get("server", {}).get("bind_ip", "0.0.0.0")
-BINDING_PORT: int = int(CFG.get("server", {}).get("bind_port", 5140))
+SERVER_CFG = CFG.get("server", {})
+DEBUG: bool = SERVER_CFG.get("debug", False)
+LOG_DUMP: bool = SERVER_CFG.get("log_dump", False)
+BINDING_IP: str = SERVER_CFG.get("bind_ip", "0.0.0.0")
+BINDING_PORT: int = int(SERVER_CFG.get("bind_port", 5140))
 
 # Database settings
 DB_CFG = CFG.get("database", {})
@@ -152,9 +153,8 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
                 batch.clear()
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                logger.opt(exception=True).error(f"Error in database writer")
-                logger.debug(str(e))
+            except Exception:
+                logger.opt(exception=True).error("Error in database writer")
         if batch and self.db:
             await self.db.write_batch(batch)  # Final write
         logger.info("Database writer task finished.")
@@ -173,7 +173,7 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
             decoded_data, debug_mode=DEBUG
         )
         if LOG_DUMP:
-            logger.trace(f"FROM {address[0]}: {processed_data}")
+            logger.debug(f"FROM {address[0]}: {processed_data}")
 
         match: re.Match[str] | None = RFC5424_PATTERN.match(processed_data)
         if not match:
@@ -256,9 +256,7 @@ async def run_server() -> None:
 
 def main() -> None:
     """CLI Entry point."""
-    log_level = "DEBUG" if DEBUG else "INFO"
-    if LOG_DUMP:
-        log_level = "TRACE"
+    log_level = "DEBUG" if DEBUG or LOG_DUMP else "INFO"
 
     logger.remove()
     logger.add(
