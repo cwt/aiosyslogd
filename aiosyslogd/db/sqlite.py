@@ -130,17 +130,17 @@ class SQLiteDriver(BaseDatabase):
             table_name = "SystemEvents"
             sql_command = (
                 f"INSERT INTO {table_name} (Facility, Priority, FromHost, InfoUnitID, "
-                "ReceivedAt, DeviceReportedTime, SysLogTag, ProcessID, Message) VALUES "
-                "(:Facility, :Priority, :FromHost, :InfoUnitID, :ReceivedAt, "
+                "ReceivedAt, DeviceReportedTime, SysLogTag, ProcessID, Message) "
+                "VALUES (:Facility, :Priority, :FromHost, :InfoUnitID, :ReceivedAt, "
                 ":DeviceReportedTime, :SysLogTag, :ProcessID, :Message)"
             )
             await self.db.executemany(sql_command, sub_batch)
             await self.db.commit()
             if self.sql_dump:
-                log_message = f"SQL: {sql_command}\nPARAMS: {sub_batch[0]}"
+                logger.trace(f"SQL: {sql_command}")
+                logger.trace(f"PARAMS: {sub_batch[0]}")
                 if len(sub_batch) > 1:
-                    log_message += f"\n(and {len(sub_batch) - 1} more logs...)"
-                logger.trace(log_message)
+                    logger.trace(f"(...and {len(sub_batch) - 1} more logs...)")
 
             logger.debug(
                 f"Successfully wrote {len(sub_batch)} logs to '{self._current_db_path}'."

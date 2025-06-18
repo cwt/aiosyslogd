@@ -1,19 +1,9 @@
-from loguru import logger
 from unittest.mock import patch
 import pytest
 import sys
 
 # --- Import the module and app to be tested ---
 from aiosyslogd import web
-
-
-@pytest.fixture(autouse=True)
-def setup_logger_for_web():
-    """Ensure logger is configured for all tests in this module."""
-    logger.remove()
-    logger.add(sys.stderr, level="DEBUG")
-    yield
-    logger.remove()
 
 
 @pytest.fixture
@@ -45,12 +35,17 @@ def test_main_meilisearch_exit(capsys):
         },
     }
     with patch("aiosyslogd.web.CFG", meili_config):
-        with pytest.raises(SystemExit) as e:
-            web.main()
-        assert e.value.code == 0
+        with patch("aiosyslogd.web.logger.info", sys.stdout.write):
+            with patch("aiosyslogd.web.logger.warning", sys.stderr.write):
+                check_backend = web.check_backend()
+                assert check_backend is False
+
+                with pytest.raises(SystemExit) as e:
+                    web.main()
+                assert e.value.code == 0
 
     captured = capsys.readouterr()
-    assert "Meilisearch backend is selected" in captured.err
+    assert "Meilisearch backend is selected" in captured.out
     assert "This web UI is for the SQLite backend only" in captured.err
 
 

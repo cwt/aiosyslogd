@@ -40,6 +40,7 @@ DB_CFG = CFG.get("database", {})
 DB_DRIVER: str = DB_CFG.get("driver", "sqlite")
 BATCH_SIZE: int = int(DB_CFG.get("batch_size", 1000))
 BATCH_TIMEOUT: int = int(DB_CFG.get("batch_timeout", 5))
+SQL_DUMP: bool = DB_CFG.get("sql_dump", False)
 
 
 # --- Security: Define an allowlist of valid database drivers ---
@@ -65,7 +66,7 @@ def get_db_driver() -> BaseDatabase | None:
         driver_config = DB_CFG.get(DB_DRIVER, {})
         # Pass general db settings to the driver as well
         driver_config["debug"] = DEBUG
-        driver_config["sql_dump"] = DB_CFG.get("sql_dump", False)
+        driver_config["sql_dump"] = SQL_DUMP
         return driver_class(driver_config)
     except (ImportError, AttributeError) as e:
         logger.opt(exception=True).error(
@@ -123,9 +124,11 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         self._message_queue.put_nowait((data, addr, datetime.now()))
 
     def error_received(self, exc: Exception) -> None:
+        """Handles the error received event."""
         logger.error(f"Error received: {exc}")
 
     def connection_lost(self, exc: Exception | None) -> None:
+        """Handles the connection lost event."""
         if exc:
             logger.warning(f"Connection lost: {exc}")
         else:
@@ -256,18 +259,23 @@ async def run_server() -> None:
 
 def main() -> None:
     """CLI Entry point."""
+    # Set log level to DEBUG if DEBUG or LOG_DUMP is enabled.
     log_level = "DEBUG" if DEBUG or LOG_DUMP else "INFO"
-
+    # If SQL_DUMP is enabled, set log level to TRACE for detailed SQL logging.
+    if SQL_DUMP:
+        log_level = "TRACE"
+    # Configure the logger output format to match default Quart format.
     logger.remove()
     logger.add(
         sys.stderr,
-        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        format="[{time:YYYY-MM-DD HH:mm:ss ZZ}] [{process}] [{level}] {message}",
         level=log_level,
     )
-
     if uvloop:
-        logger.info("Using uvloop for the event loop.")
         uvloop.install()
+    logger.info(
+        f"Using {asyncio.get_event_loop().__module__} for the event loop."
+    )
     try:
         asyncio.run(run_server())
     except (KeyboardInterrupt, asyncio.CancelledError):

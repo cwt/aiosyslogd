@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 # aiosyslogd/web.py
 
+from .config import load_config
 from datetime import datetime
+
 from loguru import logger
 from quart import Quart, render_template, request, abort, Response
 from types import ModuleType
@@ -14,7 +16,6 @@ import os
 import sqlite3
 import sys
 import time
-import toml
 
 uvloop: ModuleType | None = None
 try:
@@ -26,31 +27,34 @@ except ImportError:
     pass  # uvloop or winloop is an optional for speedup, not a requirement
 
 
-# --- Configuration Loading ---
-def load_config() -> Dict[str, Any]:
-    """Loads configuration from a TOML file."""
-    config_path_from_env: str | None = os.environ.get("AIOSYSLOGD_CONFIG")
-    config_path: str = config_path_from_env or "aiosyslogd.toml"
-
-    if not os.path.exists(config_path):
-        logger.error(f"Configuration file not found at '{config_path}'")
-        raise SystemExit(
-            "Please run 'aiosyslogd' first to create a default config file."
-        )
-
-    try:
-        with open(config_path, "r") as f:
-            return toml.load(f)
-    except toml.TomlDecodeError as e:
-        logger.error(f"Error decoding TOML file {config_path}: {e}")
-        raise SystemExit("Aborting due to invalid configuration file.")
-
-
 # --- Globals ---
 CFG: Dict[str, Any] = load_config()
+WEB_SERVER_CFG: Dict[str, Any] = CFG.get("web_server", {})
+DEBUG: bool = WEB_SERVER_CFG.get("debug", False)
+
+
+# --- Quart Application ---
 app: Quart = Quart(__name__)
 # Enable the 'do' extension for the template environment
 app.jinja_env.add_extension("jinja2.ext.do")
+
+
+# Replace Quart's logger with our configured logger.
+# --- Logger Configuration ---
+def _setup_logger() -> None:
+    """Sets up the logger with a specific format and level."""
+    # Configure the logger output format to match Quart default format.
+    log_level = "DEBUG" if DEBUG else "INFO"
+    logger.remove()
+    logger.add(
+        sys.stderr,
+        format="[{time:YYYY-MM-DD HH:mm:ss ZZ}] [{process}] [{level}] {message}",
+        level=log_level,
+    )
+    app.logger = logger
+
+
+_setup_logger()
 
 
 # --- Datetime Type Adapters for SQLite ---
@@ -96,9 +100,9 @@ def build_log_query(
         time_filters: Dict[str, str],
     ) -> None:
         """Appends time-based WHERE conditions and parameters to the given lists."""
+        # Format HTML datetime-local string to SQLite TIMESTAMP format
         if time_filters["received_at_min"]:
             conditions_list.append("ReceivedAt >= ?")
-            # Format HTML datetime-local string for SQLite by replacing 'T' with a space
             params_list.append(
                 time_filters["received_at_min"].replace("T", " ")
             )
@@ -119,6 +123,7 @@ def build_log_query(
     where_clauses: List[str] = []
 
     def apply_fts_subquery() -> None:
+        """Applies the FTS subquery for full-text search."""
         nonlocal where_clauses, params
         where_clauses.append(
             "ID IN (SELECT rowid FROM SystemEvents_FTS WHERE Message MATCH ?)"
@@ -132,7 +137,10 @@ def build_log_query(
         subquery_parts: List[str] = []
         subquery_params: List[str | int] = []
 
-        time_subquery = "SELECT ID FROM SystemEvents INDEXED BY idx_SystemEvents_ReceivedAt WHERE "
+        time_subquery = (
+            "SELECT ID FROM SystemEvents "
+            "INDEXED BY idx_SystemEvents_ReceivedAt WHERE "
+        )
         time_conditions: List[str] = []
         _add_time_filters(time_conditions, subquery_params, filters)
         time_subquery += " AND ".join(time_conditions)
@@ -140,7 +148,9 @@ def build_log_query(
         subquery_parts.append(time_subquery)
         if has_fts:
             subquery_parts.append(
-                "INTERSECT SELECT rowid FROM SystemEvents_FTS WHERE Message MATCH ?"
+                "INTERSECT SELECT rowid "
+                "FROM SystemEvents_FTS "
+                "WHERE Message MATCH ?"
             )
             subquery_params.append(search_query)
         full_subquery = " ".join(subquery_parts)
@@ -191,8 +201,11 @@ def build_log_query(
 @app.before_serving
 async def startup() -> None:
     """Function to run actions before the server starts serving."""
-    # This is a good place for future startup logic, like warming up a cache.
-    pass
+    # Verify the running event loop policy
+    app.logger.info(
+        f"{__name__.title()} is running with "
+        f"{asyncio.get_event_loop_policy().__module__}."
+    )
 
 
 @app.route("/")
@@ -217,7 +230,8 @@ async def index() -> str | Response:
 
     if not context["available_dbs"]:
         context["error"] = (
-            "No SQLite database files found. Ensure `aiosyslogd` has run and created logs."
+            "No SQLite database files found. "
+            "Ensure `aiosyslogd` has run and created logs."
         )
         return await render_template("index.html", **context)
 
@@ -260,7 +274,7 @@ async def index() -> str | Response:
         context["query_time"] = time.perf_counter() - start_time
     except (aiosqlite.OperationalError, aiosqlite.DatabaseError) as e:
         context["error"] = str(e)
-        logger.opt(exception=True).error(
+        app.logger.opt(exception=True).error(
             f"Database query failed for {context['selected_db']}"
         )
 
@@ -281,43 +295,30 @@ async def index() -> str | Response:
     return await render_template("index.html", **context)
 
 
-def main() -> None:
-    """CLI Entry point to run the web server."""
-    logger.remove()
-    logger.add(
-        sys.stderr,
-        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-        level="INFO",
-    )
-
-    db_driver: str | None = CFG.get("database", {}).get("driver", "sqlite")
+def check_backend() -> bool:
+    db_driver: str | None = CFG.get("database", {}).get("driver")
     if db_driver == "meilisearch":
         logger.info("Meilisearch backend is selected.")
         logger.warning("This web UI is for the SQLite backend only.")
         logger.warning(
             "Please use Meilisearch's own development web UI for searching."
         )
+        return False
+    return True
+
+
+def main() -> None:
+    """CLI Entry point to run the web server."""
+    if not check_backend():
         sys.exit(0)
-
-    server_cfg: Dict[str, Any] = CFG.get("web_server", {})
-    host: str = server_cfg.get("bind_ip", "127.0.0.1")
-    port: int = server_cfg.get("bind_port", 5141)
-    debug: bool = server_cfg.get("debug", False)
-
-    if debug:
-        logger.level("DEBUG")
-
+    host: str = WEB_SERVER_CFG.get("bind_ip", "127.0.0.1")
+    port: int = WEB_SERVER_CFG.get("bind_port", 5141)
     logger.info(f"Starting aiosyslogd-web interface on http://{host}:{port}")
+
     if uvloop:
         uvloop.install()
 
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    app.run(host=host, port=port, debug=debug, loop=loop)
+    app.run(host=host, port=port, debug=DEBUG)
 
 
 if __name__ == "__main__":

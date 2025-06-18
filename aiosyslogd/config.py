@@ -1,9 +1,10 @@
 # aiosyslogd/config.py
 # -*- coding: utf-8 -*-
-import os
-import toml
-from typing import Any, Dict
 from loguru import logger
+from typing import Any, Dict
+import os
+import sys
+import toml
 
 # --- Default Configuration ---
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -26,9 +27,21 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "api_key": None,
         },
     },
+    "web_server": {
+        "bind_ip": "0.0.0.0",
+        "bind_port": 5141,
+        "debug": False,
+    },
 }
 
 DEFAULT_CONFIG_FILENAME = "aiosyslogd.toml"
+# Configure the logger early to ensure all logs are formatted consistently.
+logger.remove()
+logger.add(
+    sys.stderr,
+    format="[{time:YYYY-MM-DD HH:mm:ss ZZ}] [{process}] [{level}] {message}",
+    level="INFO",  # Since this is a library, we default to INFO level logging.
+)
 
 
 def _create_default_config(path: str) -> Dict[str, Any]:
