@@ -38,7 +38,7 @@ BINDING_PORT: int = int(SERVER_CFG.get("bind_port", 5140))
 # Database settings
 DB_CFG = CFG.get("database", {})
 DB_DRIVER: str = DB_CFG.get("driver", "sqlite")
-BATCH_SIZE: int = int(DB_CFG.get("batch_size", 1000))
+BATCH_SIZE: int = int(DB_CFG.get("batch_size", 100))
 BATCH_TIMEOUT: int = int(DB_CFG.get("batch_timeout", 5))
 SQL_DUMP: bool = DB_CFG.get("sql_dump", False)
 
