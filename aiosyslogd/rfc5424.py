@@ -2,6 +2,7 @@
 from datetime import datetime, UTC
 from typing import Dict
 import re
+from loguru import logger
 
 # --- RFC 5424 and RFC 3164 Syslog Message Patterns ---
 # These patterns are compiled here to avoid repeated compilation.
@@ -41,8 +42,8 @@ def convert_rfc3164_to_rfc5424(message: str, debug_mode: bool = False) -> str:
 
     if not match:
         if debug_mode:
-            print(
-                f"[RFC-CONVERT] Not an RFC 3164 message, returning original: {message}"
+            logger.debug(
+                f"Not an RFC 3164 message, returning original: {message}"
             )
         return message
 
@@ -79,8 +80,8 @@ def convert_rfc3164_to_rfc5424(message: str, debug_mode: bool = False) -> str:
         timestamp: str = dt_aware.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
     except ValueError:
         if debug_mode:
-            print(
-                "[RFC-CONVERT] Could not parse RFC-3164 timestamp, using current time."
+            logger.debug(
+                "Could not parse RFC-3164 timestamp, using current time."
             )
         timestamp = (
             datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"

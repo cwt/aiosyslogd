@@ -3,6 +3,7 @@
 import os
 import toml
 from typing import Any, Dict
+from loguru import logger
 
 # --- Default Configuration ---
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -32,10 +33,10 @@ DEFAULT_CONFIG_FILENAME = "aiosyslogd.toml"
 
 def _create_default_config(path: str) -> Dict[str, Any]:
     """Creates the default aiosyslogd.toml file at the given path."""
-    print(f"Configuration file not found. Creating a default '{path}'...")
+    logger.info(f"Configuration file not found. Creating a default '{path}'...")
     with open(path, "w") as f:
         toml.dump(DEFAULT_CONFIG, f)
-    print(
+    logger.info(
         f"Default configuration file created. Please review '{path}' "
         "and restart the server if needed."
     )
@@ -63,7 +64,7 @@ def load_config() -> Dict[str, Any]:
         config_path = DEFAULT_CONFIG_FILENAME
         is_custom_path = False
 
-    print(f"Attempting to load configuration from: {config_path}")
+    logger.info(f"Attempting to load configuration from: {config_path}")
 
     try:
         with open(config_path, "r") as f:
@@ -71,8 +72,8 @@ def load_config() -> Dict[str, Any]:
     except FileNotFoundError:
         if is_custom_path:
             # If a custom path was provided and it doesn't exist, it's an error.
-            print(
-                f"Error: Configuration file not found at the specified path: {config_path}"
+            logger.error(
+                f"Configuration file not found at the specified path: {config_path}"
             )
             raise SystemExit(
                 "Aborting: Could not find the specified configuration file."
@@ -81,5 +82,5 @@ def load_config() -> Dict[str, Any]:
             # If the default file is not found, create it.
             return _create_default_config(config_path)
     except toml.TomlDecodeError as e:
-        print(f"Error decoding TOML file {config_path}: {e}")
+        logger.error(f"Error decoding TOML file {config_path}: {e}")
         raise SystemExit("Aborting due to invalid configuration file.")

@@ -8,6 +8,7 @@ from meilisearch_python_sdk.models.settings import (
 )
 from typing import Any, Dict, List, Set
 import asyncio
+from loguru import logger
 
 
 class MeilisearchDriver(BaseDatabase):
@@ -29,17 +30,20 @@ class MeilisearchDriver(BaseDatabase):
             health = await self.client.health()
             if health.status != "available":
                 raise ConnectionError("Meilisearch is not available.")
-            print(
+            logger.info(
                 f"Meilisearch connection established at {self.config.get('url')}."
             )
         except Exception as e:
-            print(f"Failed to connect to Meilisearch: {e}")
+            logger.opt(exception=True).error(
+                f"Failed to connect to Meilisearch"
+            )
+            logger.debug(str(e))
             raise
 
     async def close(self) -> None:
         """Closes the Meilisearch client session."""
         await self.client.aclose()
-        print("Meilisearch client session closed.")
+        logger.info("Meilisearch client session closed.")
 
     async def _ensure_monthly_index(self, index_name: str) -> None:
         """Ensures an index exists and is configured, using a lock to prevent race conditions."""
@@ -50,16 +54,14 @@ class MeilisearchDriver(BaseDatabase):
             if index_name in self._indexes_created:
                 return
 
-            if self.debug:
-                print(
-                    f"Ensuring index '{index_name}' exists and is configured..."
-                )
+            logger.debug(
+                f"Ensuring index '{index_name}' exists and is configured..."
+            )
 
             # This just sends the task to Meilisearch. We don't need the return value.
             try:
                 await self.client.create_index(uid=index_name, primary_key="id")
-                if self.debug:
-                    print(f"Index creation task for '{index_name}' sent.")
+                logger.debug(f"Index creation task for '{index_name}' sent.")
             except MeilisearchApiError as e:
                 # It's fine if the index already exists. We'll configure it next.
                 if e.code != "index_already_exists":
@@ -89,8 +91,7 @@ class MeilisearchDriver(BaseDatabase):
             await self.client.wait_for_task(settings_task.task_uid)
 
             self._indexes_created.add(index_name)
-            if self.debug:
-                print(f"Index '{index_name}' is ready.")
+            logger.debug(f"Index '{index_name}' is ready.")
 
     async def write_batch(self, batch: List[Dict[str, Any]]) -> None:
         """Writes a batch of log documents to Meilisearch."""
@@ -125,8 +126,8 @@ class MeilisearchDriver(BaseDatabase):
                 tasks_to_wait.append(doc_add_task.task_uid)
 
             # Step 2: Wait for Meilisearch to confirm all tasks have been processed
-            if self.debug and tasks_to_wait:
-                print(
+            if tasks_to_wait:
+                logger.debug(
                     f"Waiting for {len(tasks_to_wait)} Meilisearch task(s) to complete..."
                 )
 
@@ -139,16 +140,14 @@ class MeilisearchDriver(BaseDatabase):
             # Step 3: Check if any tasks failed.
             for task_result in completed_tasks:
                 if task_result.status != "succeeded":
-                    if self.debug:
-                        print(
-                            f"MEILISEARCH_TASK_ERROR: Task {task_result.uid} failed: {task_result.error}"
-                        )
+                    logger.error(
+                        f"Meilisearch task {task_result.uid} failed: {task_result.error}"
+                    )
 
-            if self.debug:
-                print(
-                    f"Successfully processed batch of {len(batch)} documents in Meilisearch."
-                )
+            logger.debug(
+                f"Successfully processed batch of {len(batch)} documents in Meilisearch."
+            )
 
         except Exception as e:
-            if self.debug:
-                print(f"MEILISEARCH_ERROR: {e}")
+            logger.opt(exception=True).error("Error writing to Meilisearch")
+            logger.debug(str(e))

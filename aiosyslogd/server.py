@@ -14,6 +14,7 @@ import asyncio
 import re
 import signal
 import sys
+from loguru import logger
 
 uvloop: ModuleType | None = None
 try:
@@ -51,10 +52,10 @@ def get_db_driver() -> BaseDatabase | None:
     # --- SECURITY MITIGATION ---
     # Validate the driver name against the allowlist to prevent code injection.
     if DB_DRIVER not in ALLOWED_DB_DRIVERS:
-        print(
-            f"Error: Invalid database driver '{DB_DRIVER}' specified in configuration."
+        logger.error(
+            f"Invalid database driver '{DB_DRIVER}' specified in configuration."
         )
-        print(f"Allowed drivers are: {', '.join(ALLOWED_DB_DRIVERS)}")
+        logger.error(f"Allowed drivers are: {', '.join(ALLOWED_DB_DRIVERS)}")
         raise SystemExit("Aborting due to invalid database driver.")
     # --- END SECURITY MITIGATION ---
     try:
@@ -66,7 +67,10 @@ def get_db_driver() -> BaseDatabase | None:
         driver_config["sql_dump"] = DB_CFG.get("sql_dump", False)
         return driver_class(driver_config)
     except (ImportError, AttributeError) as e:
-        print(f"Error loading database driver '{DB_DRIVER}': {e}")
+        logger.opt(exception=True).error(
+            f"Error loading database driver '{DB_DRIVER}'"
+        )
+        logger.debug(str(e))
         raise SystemExit("Aborting due to invalid database driver.")
 
 
@@ -95,13 +99,13 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         """Creates and initializes the SyslogUDPServer instance."""
         db_driver = get_db_driver()
         server = cls(host, port, db_driver)
-        print(f"aiosyslogd starting on UDP {host}:{port}...")
+        logger.info(f"aiosyslogd starting on UDP {host}:{port}...")
         if server.db:
-            print(f"Using '{DB_DRIVER}' database driver.")
-            print(f"Batch size: {BATCH_SIZE}, Timeout: {BATCH_TIMEOUT}s")
+            logger.info(f"Using '{DB_DRIVER}' database driver.")
+            logger.info(f"Batch size: {BATCH_SIZE}, Timeout: {BATCH_TIMEOUT}s")
             await server.db.connect()
         if DEBUG:
-            print("Debug mode is ON.")
+            logger.debug("Debug mode is ON.")
         return server
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
@@ -109,7 +113,7 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         self.transport = transport  # type: ignore
         if self.db and not self._db_writer_task:
             self._db_writer_task = self.loop.create_task(self.database_writer())
-            print("Database writer task started.")
+            logger.info("Database writer task started.")
 
     def datagram_received(self, data: bytes, addr: Tuple[str, int]) -> None:
         """Quickly queue incoming messages without processing."""
@@ -118,12 +122,13 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         self._message_queue.put_nowait((data, addr, datetime.now()))
 
     def error_received(self, exc: Exception) -> None:
-        if DEBUG:
-            print(f"Error received: {exc}")
+        logger.error(f"Error received: {exc}")
 
     def connection_lost(self, exc: Exception | None) -> None:
-        if DEBUG:
-            print(f"Connection lost: {exc}")
+        if exc:
+            logger.warning(f"Connection lost: {exc}")
+        else:
+            logger.info("Connection closed normally.")
 
     async def database_writer(self) -> None:
         """A dedicated task to write messages to the database in batches."""
@@ -148,11 +153,11 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                if DEBUG:
-                    print(f"[DB-WRITER-ERROR] {e}")
+                logger.opt(exception=True).error(f"Error in database writer")
+                logger.debug(str(e))
         if batch and self.db:
             await self.db.write_batch(batch)  # Final write
-        print("Database writer task finished.")
+        logger.info("Database writer task finished.")
 
     def process_datagram(
         self, data: bytes, address: Tuple[str, int], received_at: datetime
@@ -161,22 +166,18 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         try:
             decoded_data: str = data.decode("utf-8")
         except UnicodeDecodeError:
-            if DEBUG:
-                print(f"Cannot decode message from {address}: {data!r}")
+            logger.warning(f"Cannot decode message from {address}: {data!r}")
             return None
 
         processed_data: str = normalize_to_rfc5424(
             decoded_data, debug_mode=DEBUG
         )
         if LOG_DUMP:
-            print(
-                f"\n[{received_at}] FROM {address[0]}:\n  RFC5424 DATA: {processed_data}"
-            )
+            logger.trace(f"FROM {address[0]}: {processed_data}")
 
         match: re.Match[str] | None = RFC5424_PATTERN.match(processed_data)
         if not match:
-            if DEBUG:
-                print(f"Failed to parse as RFC-5424: {processed_data}")
+            logger.debug(f"Failed to parse as RFC-5424: {processed_data}")
             pri_end: int = processed_data.find(">")
             code: str = processed_data[1:pri_end] if pri_end != -1 else "14"
             Facility, Priority = self.syslog_matrix.decode_int(code)
@@ -213,7 +214,7 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
 
     async def shutdown(self) -> None:
         """Gracefully shuts down the server."""
-        print("\nShutting down server...")
+        logger.info("Shutting down server...")
         self._shutting_down = True
         if self.transport:
             self.transport.close()
@@ -237,7 +238,7 @@ async def run_server() -> None:
     transport, _ = await loop.create_datagram_endpoint(
         protocol_factory, local_addr=(server.host, server.port)
     )
-    print(f"Server is running. Press Ctrl+C to stop.")
+    logger.info("Server is running. Press Ctrl+C to stop.")
 
     try:
         if sys.platform == "win32":
@@ -248,22 +249,33 @@ async def run_server() -> None:
                 loop.add_signal_handler(sig, stop_event.set)
             await stop_event.wait()
     finally:
-        print("\nShutdown signal received.")
+        logger.info("Shutdown signal received.")
         transport.close()
         await server.shutdown()
 
 
 def main() -> None:
     """CLI Entry point."""
+    log_level = "DEBUG" if DEBUG else "INFO"
+    if LOG_DUMP:
+        log_level = "TRACE"
+
+    logger.remove()
+    logger.add(
+        sys.stderr,
+        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        level=log_level,
+    )
+
     if uvloop:
-        print("Using uvloop for the event loop.")
+        logger.info("Using uvloop for the event loop.")
         uvloop.install()
     try:
         asyncio.run(run_server())
     except (KeyboardInterrupt, asyncio.CancelledError):
         pass
     finally:
-        print("Server has been shut down.")
+        logger.info("Server has been shut down.")
 
 
 if __name__ == "__main__":

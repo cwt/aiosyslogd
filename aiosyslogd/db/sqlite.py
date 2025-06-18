@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 import aiosqlite
 import os
-import shutil
+from loguru import logger
 
 
 class SQLiteDriver(BaseDatabase):
@@ -19,18 +19,6 @@ class SQLiteDriver(BaseDatabase):
         self.debug = config.get("debug", False)
         self.db: aiosqlite.Connection | None = None
         self._current_db_path: str | None = None
-        if self.sql_dump or self.debug:
-            columns: int = 80  # Default terminal width
-            try:
-                columns = int(
-                    os.environ.get(
-                        "COLUMNS", shutil.get_terminal_size().columns
-                    )
-                )
-            except (ValueError, OSError):
-                pass  # Fallback to default if terminal size cannot be determined
-            self.head_line = "=" * columns
-            self.line = "-" * columns
 
     def _get_db_path_for_month(self, dt: datetime) -> str:
         """Generates a monthly database filename, e.g., syslog_202506.sqlite3"""
@@ -39,7 +27,7 @@ class SQLiteDriver(BaseDatabase):
 
     async def connect(self) -> None:
         """Initial connection is handled dynamically on the first write."""
-        print(
+        logger.info(
             "SQLite driver initialized. Connection will be made on first write."
         )
         pass
@@ -48,8 +36,9 @@ class SQLiteDriver(BaseDatabase):
         """Closes the current database connection if it exists."""
         if self.db:
             await self.db.close()
-            if self.debug:
-                print(f"SQLite connection to '{self._current_db_path}' closed.")
+            logger.debug(
+                f"SQLite connection to '{self._current_db_path}' closed."
+            )
             self.db = None
             self._current_db_path = None
 
@@ -63,14 +52,14 @@ class SQLiteDriver(BaseDatabase):
             if self.db:
                 await self.close()
 
-            print(
+            logger.info(
                 f"Month changed. Switching connection to '{target_db_path}'..."
             )
             self.db = await aiosqlite.connect(target_db_path)
             await self.db.execute("PRAGMA journal_mode=WAL;")
             await self.db.commit()
             self._current_db_path = target_db_path
-            print(f"Successfully connected to '{target_db_path}'.")
+            logger.info(f"Successfully connected to '{target_db_path}'.")
             await self.create_monthly_table("SystemEvents")
 
     async def create_monthly_table(self, table_name: str) -> None:
@@ -84,11 +73,10 @@ class SQLiteDriver(BaseDatabase):
                 f"WHERE type='table' AND name='{table_name}'"
             )
             if await cursor.fetchone() is None:
-                if self.debug:
-                    print(
-                        f"Creating new tables and indexes in {self._current_db_path}: "
-                        f"{table_name}, {fts_table_name}, idx_{table_name}_ReceivedAt"
-                    )
+                logger.debug(
+                    f"Creating new tables and indexes in {self._current_db_path}: "
+                    f"{table_name}, {fts_table_name}"
+                )
                 await self.db.execute(
                     f"""CREATE TABLE {table_name} (
                     ID INTEGER PRIMARY KEY AUTOINCREMENT, Facility INTEGER,
@@ -133,12 +121,10 @@ class SQLiteDriver(BaseDatabase):
     # NEW: Private helper method to handle writing a homogenous (single-month) batch.
     async def _write_sub_batch(self, sub_batch: List[Dict[str, Any]]):
         """Writes a sub-batch of logs that all belong to the same month."""
-        if self.sql_dump or self.debug:
-            print(self.head_line)
         try:
             await self._switch_db_if_needed(sub_batch[0]["ReceivedAt"])
             if not self.db:
-                print(f"Error: DB connection failed. Skipping sub-batch.")
+                logger.error("DB connection failed. Skipping sub-batch.")
                 return
 
             table_name = "SystemEvents"
@@ -151,25 +137,17 @@ class SQLiteDriver(BaseDatabase):
             await self.db.executemany(sql_command, sub_batch)
             await self.db.commit()
             if self.sql_dump:
+                log_message = f"SQL: {sql_command}\nPARAMS: {sub_batch[0]}"
                 if len(sub_batch) > 1:
-                    print(f"SQL: (and {len(sub_batch) -1} more logs...)")
-                else:
-                    print("SQL:")
-                print(self.line)
-                print(f"{sql_command}")
-                print(self.line)
-                print("PARAMS:")
-                print(self.line)
-                print(f"{sub_batch[0]}")
-            if self.debug:
-                print(self.line)
-                print(
-                    f"Successfully wrote {len(sub_batch)} logs to '{self._current_db_path}'."
-                )
+                    log_message += f"\n(and {len(sub_batch) - 1} more logs...)"
+                logger.trace(log_message)
+
+            logger.debug(
+                f"Successfully wrote {len(sub_batch)} logs to '{self._current_db_path}'."
+            )
         except Exception as e:
-            if self.debug:
-                print(self.line)
-                print(f"BATCH SQL_ERROR: {e}")
+            logger.opt(exception=True).error("Batch SQL write failed")
+            logger.debug(str(e))
             if self.db:
                 await self.db.rollback()
 
@@ -196,8 +174,7 @@ class SQLiteDriver(BaseDatabase):
         else:
             # --- SLOW PATH (Rare month-boundary case) ---
             # Partition the batch by month and write each sub-batch.
-            if self.debug:
-                print("Month boundary detected in batch, partitioning...")
+            logger.debug("Month boundary detected in batch, partitioning...")
             batches_by_month: Dict[str, List[Dict[str, Any]]] = {}
             for msg in batch:
                 month_key = msg["ReceivedAt"].strftime("%Y%m")
