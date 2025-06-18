@@ -83,8 +83,9 @@ def build_log_query(
     filters: Dict[str, str],
     last_id: int | None,
     page_size: int,
+    direction: str,
 ) -> Dict[str, Any]:
-    """Builds the main and count SQL queries based on filters."""
+    """Builds the main and count SQL queries based on filters and direction."""
 
     def _add_time_filters(
         conditions_list: List[str],
@@ -92,7 +93,6 @@ def build_log_query(
         time_filters: Dict[str, str],
     ) -> None:
         """Appends time-based WHERE conditions and parameters to the given lists."""
-        # Format HTML datetime-local string to SQLite TIMESTAMP format
         if time_filters["received_at_min"]:
             conditions_list.append("ReceivedAt >= ?")
             params_list.append(
@@ -175,11 +175,18 @@ def build_log_query(
     count_params = list(params)
     main_params = list(params)
 
+    # --- UPDATED Pagination Logic ---
+    order_by = "DESC"
+    id_comparison = "<"
+    if direction == "prev":
+        order_by = "ASC"
+        id_comparison = ">"
+
     if last_id:
-        main_sql += " AND ID < ?" if where_clauses else " WHERE ID < ?"
+        main_sql += f" AND ID {id_comparison} ?" if where_clauses else f" WHERE ID {id_comparison} ?"
         main_params.append(last_id)
 
-    main_sql += f" ORDER BY ID DESC LIMIT {page_size + 1}"
+    main_sql += f" ORDER BY ID {order_by} LIMIT {page_size + 1}"
 
     return {
         "main_sql": main_sql,
@@ -232,6 +239,7 @@ async def index() -> str | Response:
         "db_file", context["available_dbs"][0]
     )
     last_id: int | None = request.args.get("last_id", type=int)
+    direction: str = request.args.get("direction", "next").strip()
     page_size: int = 50
 
     if context["selected_db"] not in context["available_dbs"]:
@@ -239,7 +247,7 @@ async def index() -> str | Response:
 
     # --- Build Query ---
     query_parts = build_log_query(
-        context["search_query"], context["filters"], last_id, page_size
+        context["search_query"], context["filters"], last_id, page_size, direction
     )
     context["debug_query"] = query_parts["debug_query"]
 
@@ -270,19 +278,33 @@ async def index() -> str | Response:
             f"Database query failed for {context['selected_db']}"
         )
 
-    # --- Prepare Pagination & Rendering ---
-    has_next_page: bool = len(context["logs"]) > page_size
-    next_last_id: int | None = (
-        context["logs"][page_size - 1]["ID"]
-        if context["logs"] and has_next_page
-        else None
-    )
-    context["page_info"] = {
-        "has_next_page": has_next_page,
-        "next_last_id": next_last_id,
-        "prev_last_id": None,
-    }
+    # --- UPDATED Prepare Pagination & Rendering ---
+    if direction == "prev":
+        context["logs"].reverse()
+
+    has_more = len(context["logs"]) > page_size
     context["logs"] = context["logs"][:page_size]
+
+    page_info = {
+        "has_next_page": False,
+        "next_last_id": context["logs"][-1]["ID"] if context["logs"] else None,
+        "has_prev_page": False,
+        "prev_last_id": context["logs"][0]["ID"] if context["logs"] else None,
+    }
+
+    if direction == "prev":
+        page_info["has_prev_page"] = has_more
+        page_info["has_next_page"] = True
+    else:  # 'next' direction
+        page_info["has_next_page"] = has_more
+        page_info["has_prev_page"] = last_id is not None
+
+    context["page_info"] = page_info
+
+    # In the template, the previous button condition is `if page_info.has_prev_page`,
+    # which is what we now correctly calculate.
+    # The original template used `if logs and page_info.prev_last_id` which also works
+    # with this new logic.
 
     return await render_template("index.html", **context)
 
@@ -315,3 +337,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
