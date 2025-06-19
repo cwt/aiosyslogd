@@ -71,7 +71,7 @@ database = "syslog.sqlite3"
 
 [database.meilisearch]
 url = "http://127.0.0.1:7700"
-api_key = None
+api_key = ""
 ```
 #### **Custom Configuration Path**
 
@@ -84,19 +84,19 @@ When a custom path is provided, the server will **not** create a default file if
 
 ### **Configuration Options**
 
-| Section | Key | Description | Default |
-| :---- | :---- | :---- | :---- |
-| server | bind_ip | The IP address the server should bind to. | "0.0.0.0" |
-| server | bind_port | The UDP port to listen on. | 5140 |
-| server | debug | Set to true to enable verbose logging for parsing and database errors. | false |
-| server | log_dump | Set to true to print every received message to the console. | false |
-| database | driver | The database backend to use ("sqlite" or "meilisearch"). | "sqlite" |
-| database | batch_size | The number of messages to batch together before writing to the database. | 100 |
-| database | batch_timeout | The maximum time in seconds to wait before writing an incomplete batch. | 5 |
-| database | sql_dump | Set to true to print the SQL command and parameters before execution (SQLite only). | false |
-| database.sqlite | database | The path to the SQLite database file. | "syslog.sqlite3" |
-| database.meilisearch | url | The URL of the Meilisearch instance. | "http://127.0.0.1:7700" |
-| database.meilisearch | api_key | The API key for Meilisearch (optional). | None |
+| Section              | Key           | Description                                                              | Default                 |
+| :------------------- | :------------ | :----------------------------------------------------------------------- | :---------------------- |
+| server               | bind_ip       | The IP address the server should bind to.                                | "0.0.0.0"               |
+| server               | bind_port     | The UDP port to listen on.                                               | 5140                    |
+| server               | debug         | Set to true to enable verbose logging for parsing and database errors.   | false                   |
+| server               | log_dump      | Set to true to print every received message to the console.              | false                   |
+| database             | driver        | The database backend to use ("sqlite" or "meilisearch").                 | "sqlite"                |
+| database             | batch_size    | The number of messages to batch together before writing to the database. | 100                     |
+| database             | batch_timeout | The maximum time in seconds to wait before writing an incomplete batch.  | 5                       |
+| database             | sql_dump      | Set to true to print the SQLite command and parameters before execution. | false                   |
+| database.sqlite      | database      | The path to the SQLite database file.                                    | "syslog.sqlite3"        |
+| database.meilisearch | url           | The URL of the Meilisearch instance.                                     | "http://127.0.0.1:7700" |
+| database.meilisearch | api_key       | The API key for Meilisearch (optional).                                  | ""                      |
 
 **Note:** when sql_dump is enabled, log_dump will be disabled.
 
