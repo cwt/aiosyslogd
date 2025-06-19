@@ -183,7 +183,11 @@ def build_log_query(
         id_comparison = ">"
 
     if last_id:
-        main_sql += f" AND ID {id_comparison} ?" if where_clauses else f" WHERE ID {id_comparison} ?"
+        main_sql += (
+            f" AND ID {id_comparison} ?"
+            if where_clauses
+            else f" WHERE ID {id_comparison} ?"
+        )
         main_params.append(last_id)
 
     main_sql += f" ORDER BY ID {order_by} LIMIT {page_size + 1}"
@@ -247,7 +251,11 @@ async def index() -> str | Response:
 
     # --- Build Query ---
     query_parts = build_log_query(
-        context["search_query"], context["filters"], last_id, page_size, direction
+        context["search_query"],
+        context["filters"],
+        last_id,
+        page_size,
+        direction,
     )
     context["debug_query"] = query_parts["debug_query"]
 
@@ -270,7 +278,7 @@ async def index() -> str | Response:
             async with conn.execute(
                 query_parts["main_sql"], query_parts["main_params"]
             ) as cursor:
-                context["logs"] = await cursor.fetchall()
+                context["logs"] = list(await cursor.fetchall())
         context["query_time"] = time.perf_counter() - start_time
     except (aiosqlite.OperationalError, aiosqlite.DatabaseError) as e:
         context["error"] = str(e)
@@ -285,7 +293,7 @@ async def index() -> str | Response:
     has_more = len(context["logs"]) > page_size
     context["logs"] = context["logs"][:page_size]
 
-    page_info = {
+    page_info: Dict[str, Any] = {
         "has_next_page": False,
         "next_last_id": context["logs"][-1]["ID"] if context["logs"] else None,
         "has_prev_page": False,
@@ -337,4 +345,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
