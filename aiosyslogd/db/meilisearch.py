@@ -19,7 +19,7 @@ class MeilisearchDriver(BaseDatabase):
         self.debug = config.get("debug", False)
         self.client = AsyncClient(
             url=self.config.get("url", "http://127.0.0.1:7700"),
-            api_key=self.config.get("api_key"),
+            api_key=self.config.get("api_key") or None,
         )
         self._indexes_created: Set[str] = set()
         self._index_locks: Dict[str, asyncio.Lock] = {}

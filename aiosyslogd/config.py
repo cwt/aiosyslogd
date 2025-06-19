@@ -24,7 +24,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         },
         "meilisearch": {
             "url": "http://127.0.0.1:7700",
-            "api_key": None,
+            "api_key": "",
         },
     },
     "web_server": {
