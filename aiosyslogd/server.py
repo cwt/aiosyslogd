@@ -49,8 +49,6 @@ ALLOWED_DB_DRIVERS = {"sqlite", "meilisearch"}
 
 def get_db_driver() -> BaseDatabase | None:
     """Dynamically imports and returns a database driver instance."""
-    if DB_DRIVER is None:
-        return None
     # --- SECURITY MITIGATION ---
     # Validate the driver name against the allowlist to prevent code injection.
     if DB_DRIVER not in ALLOWED_DB_DRIVERS:
