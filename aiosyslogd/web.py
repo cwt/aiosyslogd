@@ -160,8 +160,8 @@ def build_log_query(
     if search_query:
         # Optimization: Apply the ID range to the FTS subquery as well.
         # This significantly narrows the FTS search space.
-        fts_where_parts = ["Message MATCH ?"]
-        fts_params = [search_query]
+        fts_where_parts: List[str] = ["Message MATCH ?"]
+        fts_params: List[str | int] = [search_query]
 
         if start_id is not None:
             fts_where_parts.append("rowid >= ?")
