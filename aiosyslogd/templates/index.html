@@ -59,7 +59,17 @@
         </div>
 
         <!-- Advanced Filters -->
-        <h3 class="text-lg font-medium text-gray-800 mb-2">Advanced Filters</h3>
+        <div class="flex justify-between items-center mb-2">
+             <h3 class="text-lg font-medium text-gray-800">Advanced Filters</h3>
+             {% set toggle_sql_args = request.args.to_dict() %}
+             {% if show_sql %}
+                {% do toggle_sql_args.update({'show_sql': '0'}) %}
+                <a href="{{ url_for('index', **toggle_sql_args) }}" class="text-sm text-indigo-600 hover:text-indigo-800">Hide Executed SQL</a>
+             {% else %}
+                {% do toggle_sql_args.update({'show_sql': '1'}) %}
+                <a href="{{ url_for('index', **toggle_sql_args) }}" class="text-sm text-indigo-600 hover:text-indigo-800">Show Executed SQL</a>
+             {% endif %}
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-t pt-4">
             <input type="hidden" name="last_id" value=""> <!-- Clear last_id when filters change -->
             <div>
@@ -78,7 +88,7 @@
     </form>
 
     <!-- Debug SQL Query -->
-    {% if debug_query %}
+    {% if show_sql and debug_query %}
     <div class="bg-gray-800 text-white p-4 rounded-lg shadow-md mb-8">
         <h3 class="font-bold mb-2 text-gray-400 uppercase tracking-wider text-xs">Executed SQL Query</h3>
         <pre class="font-mono text-sm whitespace-pre-wrap"><code>{{ debug_query }}</code></pre>

@@ -7,7 +7,7 @@ from datetime import datetime
 from loguru import logger
 from quart import Quart, render_template, request, abort, Response
 from types import ModuleType
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 import aiosqlite
 import asyncio
 import glob
@@ -78,89 +78,105 @@ def get_available_databases() -> List[str]:
     return files
 
 
+async def get_time_boundary_ids(
+    conn: aiosqlite.Connection, min_time_filter: str, max_time_filter: str
+) -> Tuple[int | None, int | None, List[str]]:
+    """
+    Finds the starting and ending log IDs for a given time window.
+    Also returns the queries used for debugging purposes.
+    """
+    start_id: int | None = None  # noqa
+    end_id: int | None = None  # noqa
+    debug_queries: List[str] = []
+
+    where_parts = []
+    params = []
+
+    if min_time_filter:
+        where_parts.append("ReceivedAt >= ?")
+        params.append(min_time_filter.replace("T", " "))
+    if max_time_filter:
+        where_parts.append("ReceivedAt <= ?")
+        params.append(max_time_filter.replace("T", " "))
+
+    if not where_parts:
+        return None, None, []
+
+    where_clause = " AND ".join(where_parts)
+
+    # Find start_id
+    start_sql = f"SELECT ID FROM SystemEvents WHERE {where_clause} ORDER BY ID ASC LIMIT 1"
+    debug_queries.append(
+        f"Boundary Query (Start):\nQuery: {start_sql}\nParameters: {tuple(params)}"
+    )
+    async with conn.execute(start_sql, params) as cursor:
+        row = await cursor.fetchone()
+        start_id = row["ID"] if row else None
+
+    # If no start_id is found, there are no records in the range, so we can stop.
+    if start_id is None:
+        return None, None, debug_queries
+
+    # Find end_id
+    end_sql = f"SELECT ID FROM SystemEvents WHERE {where_clause} ORDER BY ID DESC LIMIT 1"
+    debug_queries.append(
+        f"Boundary Query (End):\nQuery: {end_sql}\nParameters: {tuple(params)}"
+    )
+    async with conn.execute(end_sql, params) as cursor:
+        row = await cursor.fetchone()
+        end_id = row["ID"] if row else None
+
+    return start_id, end_id, debug_queries
+
+
 def build_log_query(
     search_query: str,
     filters: Dict[str, str],
     last_id: int | None,
     page_size: int,
     direction: str,
+    start_id: int | None,
+    end_id: int | None,
 ) -> Dict[str, Any]:
     """Builds the main and count SQL queries based on filters and direction."""
-
-    def _add_time_filters(
-        conditions_list: List[str],
-        params_list: List[str | int],
-        time_filters: Dict[str, str],
-    ) -> None:
-        """Appends time-based WHERE conditions and parameters to the given lists."""
-        if time_filters["received_at_min"]:
-            conditions_list.append("ReceivedAt >= ?")
-            params_list.append(
-                time_filters["received_at_min"].replace("T", " ")
-            )
-        if time_filters["received_at_max"]:
-            conditions_list.append("ReceivedAt <= ?")
-            params_list.append(
-                time_filters["received_at_max"].replace("T", " ")
-            )
-
-    params: List[str | int] = []
-    has_from_host: bool = bool(filters["from_host"])
-    has_time_range: bool = bool(
-        filters["received_at_min"] or filters["received_at_max"]
-    )
-    has_fts: bool = bool(search_query)
-
-    from_clause: str = "FROM SystemEvents"
+    params: List[Any] = []
     where_clauses: List[str] = []
+    from_clause: str = "FROM SystemEvents"
 
-    def apply_fts_subquery() -> None:
-        """Applies the FTS subquery for full-text search."""
-        nonlocal where_clauses, params
-        where_clauses.append(
-            "ID IN (SELECT rowid FROM SystemEvents_FTS WHERE Message MATCH ?)"
-        )
-        params.append(search_query)
+    # Time-based ID range filter for the main query
+    if start_id is not None:
+        where_clauses.append("ID >= ?")
+        params.append(start_id)
+    if end_id is not None:
+        where_clauses.append("ID <= ?")
+        params.append(end_id)
 
-    if has_from_host and has_time_range:
-        from_clause += " INDEXED BY idx_SystemEvents_FromHost"
+    # Other attribute filters
+    if filters["from_host"]:
         where_clauses.append("FromHost = ?")
         params.append(filters["from_host"])
-        subquery_parts: List[str] = []
-        subquery_params: List[str | int] = []
 
-        time_subquery = (
-            "SELECT ID FROM SystemEvents "
-            "INDEXED BY idx_SystemEvents_ReceivedAt WHERE "
+    # FTS subquery filter
+    if search_query:
+        # Optimization: Apply the ID range to the FTS subquery as well.
+        # This significantly narrows the FTS search space.
+        fts_where_parts = ["Message MATCH ?"]
+        fts_params = [search_query]
+
+        if start_id is not None:
+            fts_where_parts.append("rowid >= ?")
+            fts_params.append(start_id)
+        if end_id is not None:
+            fts_where_parts.append("rowid <= ?")
+            fts_params.append(end_id)
+
+        fts_where_clause = " AND ".join(fts_where_parts)
+        fts_subquery = (
+            f"SELECT rowid FROM SystemEvents_FTS WHERE {fts_where_clause}"
         )
-        time_conditions: List[str] = []
-        _add_time_filters(time_conditions, subquery_params, filters)
-        time_subquery += " AND ".join(time_conditions)
 
-        subquery_parts.append(time_subquery)
-        if has_fts:
-            subquery_parts.append(
-                "INTERSECT SELECT rowid "
-                "FROM SystemEvents_FTS "
-                "WHERE Message MATCH ?"
-            )
-            subquery_params.append(search_query)
-        full_subquery = " ".join(subquery_parts)
-        where_clauses.append(f"ID IN ({full_subquery})")
-        params.extend(subquery_params)
-    elif has_from_host:
-        from_clause += " INDEXED BY idx_SystemEvents_FromHost"
-        where_clauses.append("FromHost = ?")
-        params.append(filters["from_host"])
-        if has_fts:
-            apply_fts_subquery()
-    elif has_time_range:
-        from_clause += " INDEXED BY idx_SystemEvents_ReceivedAt"
-        _add_time_filters(where_clauses, params, filters)
-        if has_fts:
-            apply_fts_subquery()
-    elif has_fts:
-        apply_fts_subquery()
+        where_clauses.append(f"ID IN ({fts_subquery})")
+        params.extend(fts_params)
 
     base_sql = "SELECT ID, FromHost, ReceivedAt, Message"
     count_sql = f"SELECT COUNT(*) {from_clause}"
@@ -175,7 +191,7 @@ def build_log_query(
     count_params = list(params)
     main_params = list(params)
 
-    # --- UPDATED Pagination Logic ---
+    # --- Pagination Logic ---
     order_by = "DESC"
     id_comparison = "<"
     if direction == "prev":
@@ -183,7 +199,8 @@ def build_log_query(
         id_comparison = ">"
 
     if last_id:
-        main_sql += f" AND ID {id_comparison} ?" if where_clauses else f" WHERE ID {id_comparison} ?"
+        paginator_keyword = "AND" if where_clauses else "WHERE"
+        main_sql += f" {paginator_keyword} ID {id_comparison} ?"
         main_params.append(last_id)
 
     main_sql += f" ORDER BY ID {order_by} LIMIT {page_size + 1}"
@@ -193,7 +210,7 @@ def build_log_query(
         "main_params": main_params,
         "count_sql": count_sql,
         "count_params": count_params,
-        "debug_query": f"Query: {main_sql}\n\nParameters: {main_params}",
+        "debug_query": f"Main Query:\nQuery: {main_sql}\nParameters: {main_params}",
     }
 
 
@@ -210,6 +227,7 @@ async def startup() -> None:
 @app.route("/")
 async def index() -> str | Response:
     """Main route for displaying and searching logs."""
+    show_sql = request.args.get("show_sql", "0") == "1"
     context: Dict[str, Any] = {
         "logs": [],
         "total_logs": 0,
@@ -225,6 +243,7 @@ async def index() -> str | Response:
         },
         "debug_query": "",
         "request": request,
+        "show_sql": show_sql,
     }
 
     if not context["available_dbs"]:
@@ -245,11 +264,9 @@ async def index() -> str | Response:
     if context["selected_db"] not in context["available_dbs"]:
         abort(404, "Database file not found.")
 
-    # --- Build Query ---
-    query_parts = build_log_query(
-        context["search_query"], context["filters"], last_id, page_size, direction
-    )
-    context["debug_query"] = query_parts["debug_query"]
+    start_id: int | None = None
+    end_id: int | None = None
+    debug_info: List[str] = []
 
     # --- Execute Query ---
     try:
@@ -261,6 +278,46 @@ async def index() -> str | Response:
             detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
         ) as conn:
             conn.row_factory = aiosqlite.Row
+
+            min_time_filter = context["filters"]["received_at_min"]
+            max_time_filter = context["filters"]["received_at_max"]
+
+            if min_time_filter or max_time_filter:
+                start_id, end_id, boundary_queries = (
+                    await get_time_boundary_ids(
+                        conn, min_time_filter, max_time_filter
+                    )
+                )
+                debug_info.extend(boundary_queries)
+
+                # Early exit: If a time boundary was set but no logs were found for it,
+                # the result set is empty.
+                if (min_time_filter and start_id is None) or (
+                    max_time_filter and end_id is None
+                ):
+                    context["logs"], context["total_logs"] = [], 0
+                    context["query_time"] = time.perf_counter() - start_time
+                    context["debug_query"] = "\n\n---\n\n".join(debug_info)
+                    context["page_info"] = {
+                        "has_next_page": False,
+                        "next_last_id": None,
+                        "has_prev_page": False,
+                        "prev_last_id": None,
+                    }
+                    return await render_template("index.html", **context)
+
+            # --- Build and Execute Queries ---
+            query_parts = build_log_query(
+                context["search_query"],
+                context["filters"],
+                last_id,
+                page_size,
+                direction,
+                start_id,
+                end_id,
+            )
+            debug_info.append(query_parts["debug_query"])
+
             async with conn.execute(
                 query_parts["count_sql"], query_parts["count_params"]
             ) as cursor:
@@ -271,14 +328,17 @@ async def index() -> str | Response:
                 query_parts["main_sql"], query_parts["main_params"]
             ) as cursor:
                 context["logs"] = await cursor.fetchall()
+
         context["query_time"] = time.perf_counter() - start_time
+        context["debug_query"] = "\n\n---\n\n".join(debug_info)
+
     except (aiosqlite.OperationalError, aiosqlite.DatabaseError) as e:
         context["error"] = str(e)
         app.logger.opt(exception=True).error(  # type: ignore[attr-defined]
             f"Database query failed for {context['selected_db']}"
         )
 
-    # --- UPDATED Prepare Pagination & Rendering ---
+    # --- Prepare Pagination & Rendering ---
     if direction == "prev":
         context["logs"].reverse()
 
@@ -300,11 +360,6 @@ async def index() -> str | Response:
         page_info["has_prev_page"] = last_id is not None
 
     context["page_info"] = page_info
-
-    # In the template, the previous button condition is `if page_info.has_prev_page`,
-    # which is what we now correctly calculate.
-    # The original template used `if logs and page_info.prev_last_id` which also works
-    # with this new logic.
 
     return await render_template("index.html", **context)
 
@@ -337,4 +392,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
