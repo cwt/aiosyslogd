@@ -327,7 +327,7 @@ async def index() -> str | Response:
             async with conn.execute(
                 query_parts["main_sql"], query_parts["main_params"]
             ) as cursor:
-                context["logs"] = await cursor.fetchall()
+                context["logs"] = list(await cursor.fetchall())
 
         context["query_time"] = time.perf_counter() - start_time
         context["debug_query"] = "\n\n---\n\n".join(debug_info)
