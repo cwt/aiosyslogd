@@ -170,8 +170,9 @@
     <!-- Pagination -->
     <div class="flex justify-between items-center mt-6">
         <div>
-           {% if logs and page_info.prev_last_id %}
+           {% if page_info.has_prev_page %}
              {% set prev_args = request.args.to_dict() %}
+             {# FIX: Explicitly set direction to 'prev' #}
              {% do prev_args.update({'last_id': page_info.prev_last_id, 'direction': 'prev'}) %}
              <a href="{{ url_for('index', **prev_args) }}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                 Previous
@@ -180,9 +181,10 @@
         </div>
         <div>
             {% if page_info.has_next_page %}
-            {% set next_args = request.args.to_dict() %}
-            {% do next_args.update({'last_id': page_info.next_last_id}) %}
-            <a href="{{ url_for('index', **next_args) }}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+             {% set next_args = request.args.to_dict() %}
+             {# FIX: Explicitly set direction to 'next' #}
+             {% do next_args.update({'last_id': page_info.next_last_id, 'direction': 'next'}) %}
+             <a href="{{ url_for('index', **next_args) }}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                 Next
             </a>
             {% endif %}
