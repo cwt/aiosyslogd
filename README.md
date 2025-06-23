@@ -1,6 +1,9 @@
 
 # **aiosyslogd**
 
+[![PyPI Version](https://img.shields.io/pypi/v/aiosyslogd.svg)](https://pypi.org/project/aiosyslogd/)
+[![Quay.io Build Status](https://quay.io/repository/cwt/aiosyslogd/status "Quay.io Build Status")](https://quay.io/repository/cwt/aiosyslogd)
+
 **aiosyslogd** is a high-performance, asynchronous Syslog server built with Python's asyncio. It is designed for efficiently receiving, parsing, and storing a large volume of syslog messages.
 
 It features an optional integration with uvloop for a significant performance boost and can write messages to a SQLite database or Meilisearch, automatically creating monthly tables/indexes and maintaining a Full-Text Search (FTS) index for fast queries.
@@ -16,6 +19,64 @@ It features an optional integration with uvloop for a significant performance bo
 * **Full-Text Search:** Automatically maintains an FTS5 virtual table (SystemEvents_FTS) for SQLite or fully indexed Meilisearch backend for powerful and fast message searching.
 * **RFC5424 Conversion:** Includes a utility to convert older *RFC3164* formatted messages to the modern *RFC5424* format.
 * **Flexible Configuration:** Configure the server via a simple aiosyslogd.toml file.
+
+## **Running with Containers (Docker / Podman)**
+
+The most convenient way to run **aiosyslogd** is by using the pre-built container images available on [Quay.io](https://quay.io/repository/cwt/aiosyslogd).
+
+### **Image Tags**
+
+The container images are automatically built from the GitHub repository:
+
+* Pushes to the `main` branch will build the `quay.io/cwt/aiosyslogd:latest` image.
+* New version tags (e.g., `v0.2.5`) will automatically build a corresponding image (`quay.io/cwt/aiosyslogd:v0.2.5`).
+
+### **Quick Start with Containers**
+
+**1. Pull the Image**
+
+You can pull the latest image using Docker or Podman:
+
+```bash
+# Using Docker
+docker pull quay.io/cwt/aiosyslogd:latest
+
+# Using Podman
+podman pull quay.io/cwt/aiosyslogd:latest
+```
+
+**2. Run the Server**
+
+To run the server, you must mount a volume to the /data directory inside the container. This is critical for persisting your configuration and log data.
+
+```bash
+# Run the server using Docker
+docker run -d \
+  --name aiosyslogd-server \
+  -p 5140:5140/udp \
+  -v /path/to/your/data:/data \
+  quay.io/cwt/aiosyslogd:latest
+
+# Run the web UI using Docker
+docker run -d \
+  --name aiosyslogd-web \
+  -p 5141:5141/tcp \
+  -v /path/to/your/data:/data,ro \
+  quay.io/cwt/aiosyslogd:latest \
+    aiosyslogd-web
+```
+
+**Note:** Be sure to replace /path/to/your/data with a real path on your host machine (e.g., ~/.aiosyslogd/data).
+
+**Explanation of the command:**
+
+- `-d`: Runs the container in detached mode (in the background).
+- `--name aiosyslogd-server` (or `aiosyslogd-web` for the web UI): Assigns a convenient name to your container.
+- `-p 5140:5140/udp`: Maps the syslog server port.
+- `-p 5141:5141/tcp`: Maps the web server port.
+- `-v /path/to/your/data:/data`: (IMPORTANT) Mounts a host directory into the container's data directory, and you should add `,ro` to mount it as a read-only storage for the web UI.
+
+On the first run, the server will not find a configuration file in the mounted /data volume and will create a default aiosyslogd.toml for you there. You can then edit this file on your host machine to re-configure the server and simply restart the container for the changes to take effect.
 
 ## **Installation**
 
