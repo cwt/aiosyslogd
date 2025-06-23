@@ -1,10 +1,10 @@
 # Define build-time arguments for version management
-ARG PYTHON_VERSION=3.13-slim
+ARG ALMA_IMAGE=10-minimal
 ARG POETRY_VERSION=2.1.3
 
 # Stage 1: Build Stage
 # This stage installs dependencies using Poetry into a virtual environment.
-FROM python:${PYTHON_VERSION} as builder
+FROM almalinux:${ALMA_IMAGE} as builder
 
 # Re-declare ARG to bring it into the scope of this build stage
 ARG POETRY_VERSION
@@ -16,7 +16,8 @@ WORKDIR /app
 # We pin the version for consistent builds and use a virtual environment for poetry itself.
 ENV POETRY_HOME=/opt/poetry
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
-RUN python -m venv $POETRY_HOME && $POETRY_HOME/bin/pip install poetry==${POETRY_VERSION}
+RUN microdnf install -y python3-devel
+RUN python3 -m venv $POETRY_HOME && $POETRY_HOME/bin/pip install poetry==${POETRY_VERSION}
 
 # Add poetry to the PATH
 ENV PATH="$POETRY_HOME/bin:$PATH"
@@ -35,13 +36,16 @@ RUN poetry install --compile --without dev --extras speed
 
 # Stage 2: Final Runtime Stage
 # This stage creates the final, lightweight image for running the application.
-FROM python:${PYTHON_VERSION}
+FROM almalinux:${ALMA_IMAGE}
 
 # Set a base application directory
 WORKDIR /app
 
-# Create a non-root user for security purposes
-RUN useradd --create-home --shell /bin/bash aiosyslogd
+# Install only the necessary runtime dependencies, and set up a non-root user.
+RUN microdnf install -y python3-libs shadow-utils \
+ && useradd --create-home --shell /bin/bash aiosyslogd \
+ && microdnf remove -y shadow-utils \
+ && microdnf clean all
 
 # Copy the virtual environment (which includes the installed project) from the builder stage
 COPY --from=builder --chown=aiosyslogd:aiosyslogd /app/.venv ./.venv
