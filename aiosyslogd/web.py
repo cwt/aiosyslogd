@@ -113,7 +113,7 @@ async def get_time_boundary_ids(
             f"  Time: {elapsed_ms:.2f}ms"
         )
 
-    # --- Find End ID (Unchanged as per request) ---
+    # --- Find End ID ---
     if max_time_filter:
         # Find the first ID *after* the end time.
         end_boundary_sql = "SELECT ID FROM SystemEvents WHERE ReceivedAt > ? ORDER BY ID ASC LIMIT 1"
@@ -128,9 +128,16 @@ async def get_time_boundary_ids(
             # The true end ID is the one right before the first log outside our time window.
             end_id = next_id_after_end - 1
         else:
-            # No logs exist after the specified end time, so the last log in the table is the boundary.
+            # No logs exist after the specified end time. Find the last log *within* the valid time range.
+            fallback_clauses = ["ReceivedAt <= ?"]
+            fallback_params = [max_time_filter.replace("T", " ")]
+            if min_time_filter:
+                fallback_clauses.append("ReceivedAt >= ?")
+                fallback_params.append(min_time_filter.replace("T", " "))
+
+            fallback_sql = f"SELECT MAX(ID) FROM SystemEvents WHERE {' AND '.join(fallback_clauses)}"
             async with conn.execute(
-                "SELECT MAX(ID) FROM SystemEvents"
+                fallback_sql, tuple(fallback_params)
             ) as cursor:
                 row = await cursor.fetchone()
                 end_id = row[0] if row else None
