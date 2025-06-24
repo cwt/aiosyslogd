@@ -82,49 +82,72 @@ async def get_time_boundary_ids(
     conn: aiosqlite.Connection, min_time_filter: str, max_time_filter: str
 ) -> Tuple[int | None, int | None, List[str]]:
     """
-    Finds the starting and ending log IDs for a given time window.
-    Also returns the queries used for debugging purposes.
+    Finds the starting and ending log IDs for a given time window using efficient forward-only queries.
     """
-    start_id: int | None = None  # noqa
-    end_id: int | None = None  # noqa
+    start_id: int | None = None
+    end_id: int | None = None
     debug_queries: List[str] = []
 
-    where_parts = []
-    params = []
-
+    # --- Find Start ID ---
     if min_time_filter:
-        where_parts.append("ReceivedAt >= ?")
-        params.append(min_time_filter.replace("T", " "))
+        # Re-adding the max_time_filter to this query as requested for testing.
+        start_where_clauses = ["ReceivedAt >= ?"]
+        start_params = [min_time_filter.replace("T", " ")]
+        if max_time_filter:
+            start_where_clauses.append("ReceivedAt <= ?")
+            start_params.append(max_time_filter.replace("T", " "))
+
+        start_sql = f"SELECT ID FROM SystemEvents WHERE {' AND '.join(start_where_clauses)} ORDER BY ID ASC LIMIT 1"
+        params = tuple(start_params)
+
+        start_time = time.perf_counter()
+        async with conn.execute(start_sql, params) as cursor:
+            row = await cursor.fetchone()
+            start_id = row["ID"] if row else None
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        debug_queries.append(
+            f"Boundary Query (Start):\n"
+            f"  Query: {start_sql}\n"
+            f"  Parameters: {params}\n"
+            f"  Result ID: {start_id}\n"
+            f"  Time: {elapsed_ms:.2f}ms"
+        )
+
+    # --- Find End ID (Unchanged as per request) ---
     if max_time_filter:
-        where_parts.append("ReceivedAt <= ?")
-        params.append(max_time_filter.replace("T", " "))
+        # Find the first ID *after* the end time.
+        end_boundary_sql = "SELECT ID FROM SystemEvents WHERE ReceivedAt > ? ORDER BY ID ASC LIMIT 1"
+        params = (max_time_filter.replace("T", " "),)
+        start_time = time.perf_counter()
+        next_id_after_end = None
+        async with conn.execute(end_boundary_sql, params) as cursor:
+            row = await cursor.fetchone()
+            next_id_after_end = row["ID"] if row else None
 
-    if not where_parts:
-        return None, None, []
+        if next_id_after_end:
+            # The true end ID is the one right before the first log outside our time window.
+            end_id = next_id_after_end - 1
+        else:
+            # No logs exist after the specified end time, so the last log in the table is the boundary.
+            async with conn.execute(
+                "SELECT MAX(ID) FROM SystemEvents"
+            ) as cursor:
+                row = await cursor.fetchone()
+                end_id = row[0] if row else None
 
-    where_clause = " AND ".join(where_parts)
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        debug_queries.append(
+            f"Boundary Query (End):\n"
+            f"  Query: {end_boundary_sql}\n"
+            f"  Parameters: {params}\n"
+            f"  Resulting Next ID: {next_id_after_end}\n"
+            f"  Calculated End ID: {end_id}\n"
+            f"  Time: {elapsed_ms:.2f}ms"
+        )
 
-    # Find start_id
-    start_sql = f"SELECT ID FROM SystemEvents WHERE {where_clause} ORDER BY ID ASC LIMIT 1"
-    debug_queries.append(
-        f"Boundary Query (Start):\nQuery: {start_sql}\nParameters: {tuple(params)}"
-    )
-    async with conn.execute(start_sql, params) as cursor:
-        row = await cursor.fetchone()
-        start_id = row["ID"] if row else None
-
-    # If no start_id is found, there are no records in the range, so we can stop.
-    if start_id is None:
-        return None, None, debug_queries
-
-    # Find end_id
-    end_sql = f"SELECT ID FROM SystemEvents WHERE {where_clause} ORDER BY ID DESC LIMIT 1"
-    debug_queries.append(
-        f"Boundary Query (End):\nQuery: {end_sql}\nParameters: {tuple(params)}"
-    )
-    async with conn.execute(end_sql, params) as cursor:
-        row = await cursor.fetchone()
-        end_id = row["ID"] if row else None
+    # If only max_time is provided, start_id will be None from above. We should start from the beginning.
+    if max_time_filter and not min_time_filter:
+        start_id = 1  # Assuming IDs start at 1
 
     return start_id, end_id, debug_queries
 
@@ -210,7 +233,7 @@ def build_log_query(
         "main_params": main_params,
         "count_sql": count_sql,
         "count_params": count_params,
-        "debug_query": f"Main Query:\nQuery: {main_sql}\nParameters: {main_params}",
+        "debug_query": f"Main Query:\n  Query: {main_sql}\n  Parameters: {main_params}",
     }
 
 
@@ -290,7 +313,7 @@ async def index() -> str | Response:
 
                 # Early exit: If a time boundary was set but no logs were found for it,
                 # the result set is empty.
-                if (min_time_filter and start_id is None) or (
+                if (min_time_filter and start_id is None) and (
                     max_time_filter and end_id is None
                 ):
                     context["logs"], context["total_logs"] = [], 0
