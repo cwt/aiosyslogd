@@ -67,14 +67,8 @@
         <!-- Advanced Filters -->
         <div class="flex justify-between items-center mb-2">
              <h3 class="text-lg font-medium text-gray-800">Advanced Filters</h3>
-             {% set toggle_sql_args = request.args.to_dict() %}
-             {% if show_sql %}
-                {% do toggle_sql_args.update({'show_sql': '0'}) %}
-                <a href="{{ url_for('index', **toggle_sql_args) }}" class="text-sm text-indigo-600 hover:text-indigo-800">Hide Executed SQL</a>
-             {% else %}
-                {% do toggle_sql_args.update({'show_sql': '1'}) %}
-                <a href="{{ url_for('index', **toggle_sql_args) }}" class="text-sm text-indigo-600 hover:text-indigo-800">Show Executed SQL</a>
-             {% endif %}
+             <!-- MODIFIED: Changed from a link to a button -->
+             <button type="button" id="toggle-sql-btn" class="text-sm text-indigo-600 hover:text-indigo-800">Show Executed SQL</button>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-t pt-4">
             <input type="hidden" name="last_id" value=""> <!-- Clear last_id when filters change -->
@@ -92,25 +86,26 @@
             </div>
         </div>
 
-        <!-- Debug SQL Query (Moved here) -->
-        {% if show_sql and debug_query %}
-        <div class="bg-gray-800 text-white p-4 rounded-lg shadow-inner mt-4">
+        <!-- Debug SQL Query -->
+        <!-- MODIFIED: The box is now always rendered but hidden by default -->
+        {% if debug_query %}
+        <div id="sql-query-box" class="bg-gray-800 text-white p-4 rounded-lg shadow-inner mt-4 hidden">
             <h3 class="font-bold mb-2 text-gray-400 uppercase tracking-wider text-xs">Executed SQL Query</h3>
             <pre class="font-mono text-sm whitespace-pre-wrap"><code>{{ debug_query }}</code></pre>
         </div>
         {% endif %}
     </form>
 
-    <!-- Key Highlighter UI (Moved here) -->
+    <!-- Key Highlighter UI -->
     <div class="bg-white p-4 rounded-lg shadow-md mb-8">
         <h3 class="text-lg font-medium text-gray-800 mb-2">Dynamic Highlighter</h3>
         <div class="flex items-center space-x-2">
             <input type="text" id="key-extractor-input" placeholder="Enter key to highlight" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-            <button type="button" id="add-column-btn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">Highlight Key</button>
-            <button type="button" id="remove-columns-btn" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">Remove All</button>
+            <button type="button" id="add-highlight-btn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">Highlight Key</button>
+            <button type="button" id="remove-highlights-btn" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">Remove All</button>
         </div>
         <div class="mt-2 text-sm text-gray-600">
-            <strong>Highlighted Keys:</strong> <span id="extracted-keys-list">None</span>
+            <strong>Highlighted Keys:</strong> <span id="highlighted-keys-list">None</span>
         </div>
     </div>
 
@@ -208,9 +203,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- STATE ---
     let originalCasingKeys = []; // Stores original keys for display and URL
     const keyInput = document.getElementById('key-extractor-input');
-    const addButton = document.getElementById('add-column-btn');
-    const removeButton = document.getElementById('remove-columns-btn');
-    const keyListSpan = document.getElementById('extracted-keys-list');
+    const addHighlightButton = document.getElementById('add-highlight-btn');
+    const removeHighlightsButton = document.getElementById('remove-highlights-btn');
+    const highlightedKeysList = document.getElementById('highlighted-keys-list');
+    const toggleSqlButton = document.getElementById('toggle-sql-btn');
+    const sqlQueryBox = document.getElementById('sql-query-box');
 
     const highlightColors = [
         'bg-green-100 text-green-800',
@@ -226,7 +223,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function applyAllHighlights() {
         const messageCells = document.querySelectorAll('.log-message-cell');
         messageCells.forEach(cell => {
-            // Restore original text before applying new highlights
             if (cell.dataset.originalText) {
                 cell.innerHTML = cell.dataset.originalText;
             } else {
@@ -242,7 +238,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const regex = new RegExp(`(${sanitizedKey}(?:\\s*=\\s*|\\s+)(?:'[^']+'|"[^"]+"|[\\S]+))`, 'gi');
 
                 newHtml = newHtml.replace(regex, (match) => {
-                    // Avoid re-wrapping a span
                     if (match.startsWith('<span')) return match;
                     return `<span class="highlight-span ${colorClass}">${match}</span>`;
                 });
@@ -277,19 +272,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateKeyListUI() {
         if (originalCasingKeys.length > 0) {
-            keyListSpan.innerHTML = '';
+            highlightedKeysList.innerHTML = '';
             originalCasingKeys.forEach(key => {
                 const lowerCaseKey = key.toLowerCase();
                 const colorClass = keyColorMap[lowerCaseKey];
                 const span = document.createElement('span');
                 span.className = `highlight-span mr-2 ${colorClass}`;
                 span.textContent = key;
-                keyListSpan.appendChild(span);
+                highlightedKeysList.appendChild(span);
             });
-            removeButton.style.display = 'inline-flex';
+            removeHighlightsButton.style.display = 'inline-flex';
         } else {
-            keyListSpan.textContent = 'None';
-            removeButton.style.display = 'none';
+            highlightedKeysList.textContent = 'None';
+            removeHighlightsButton.style.display = 'none';
         }
     }
 
@@ -307,7 +302,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // --- EVENT LISTENERS ---
-    addButton.addEventListener('click', () => {
+    addHighlightButton.addEventListener('click', () => {
         const newKey = keyInput.value.trim();
         if (newKey) {
             addHighlightKey(newKey);
@@ -315,14 +310,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    removeButton.addEventListener('click', resetHighlights);
+    removeHighlightsButton.addEventListener('click', resetHighlights);
 
     keyInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            addButton.click();
+            addHighlightButton.click();
         }
     });
+
+    if (toggleSqlButton) {
+        toggleSqlButton.addEventListener('click', () => {
+            if (sqlQueryBox) {
+                const isHidden = sqlQueryBox.classList.toggle('hidden');
+                toggleSqlButton.textContent = isHidden ? 'Show Executed SQL' : 'Hide Executed SQL';
+            }
+        });
+    }
 
     // --- ON PAGE LOAD ---
     function initialize() {

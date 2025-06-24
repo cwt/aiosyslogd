@@ -227,7 +227,6 @@ async def startup() -> None:
 @app.route("/")
 async def index() -> str | Response:
     """Main route for displaying and searching logs."""
-    show_sql = request.args.get("show_sql", "0") == "1"
     context: Dict[str, Any] = {
         "logs": [],
         "total_logs": 0,
@@ -243,7 +242,6 @@ async def index() -> str | Response:
         },
         "debug_query": "",
         "request": request,
-        "show_sql": show_sql,
     }
 
     if not context["available_dbs"]:
