@@ -132,10 +132,9 @@ class MeilisearchDriver(BaseDatabase):
                 )
 
             # Use client.wait_for_task for all collected UIDs.
-            wait_tasks = [
-                self.client.wait_for_task(uid) for uid in tasks_to_wait
-            ]
-            completed_tasks = await asyncio.gather(*wait_tasks)
+            completed_tasks = await asyncio.gather(
+                *(self.client.wait_for_task(uid) for uid in tasks_to_wait)
+            )
 
             # Step 3: Check if any tasks failed.
             for task_result in completed_tasks:
