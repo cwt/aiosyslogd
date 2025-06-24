@@ -3,7 +3,7 @@
 # aiosyslogd/web.py
 
 from .config import load_config
-from datetime import datetime
+from datetime import datetime, timedelta
 from loguru import logger
 from quart import Quart, render_template, request, abort, Response
 from types import ModuleType
@@ -82,79 +82,146 @@ async def get_time_boundary_ids(
     conn: aiosqlite.Connection, min_time_filter: str, max_time_filter: str
 ) -> Tuple[int | None, int | None, List[str]]:
     """
-    Finds the starting and ending log IDs for a given time window using efficient forward-only queries.
+    Finds the starting and ending log IDs for a given time window using an
+    efficient, iterative, chunk-based search.
     """
     start_id: int | None = None
     end_id: int | None = None
     debug_queries: List[str] = []
 
+    db_time_format = "%Y-%m-%d %H:%M:%S"
+    chunk_sizes_minutes = [5, 15, 30, 60]
+
+    def _parse_time_string(time_str: str) -> datetime:
+        """Parses a time string which may or may not include seconds."""
+        time_str = time_str.replace("T", " ")
+        try:
+            return datetime.strptime(time_str, db_time_format)
+        except ValueError:
+            return datetime.strptime(time_str, "%Y-%m-%d %H:%M")
+
     # --- Find Start ID ---
     if min_time_filter:
-        # Re-adding the max_time_filter to this query as requested for testing.
-        start_where_clauses = ["ReceivedAt >= ?"]
-        start_params = [min_time_filter.replace("T", " ")]
-        if max_time_filter:
-            start_where_clauses.append("ReceivedAt <= ?")
-            start_params.append(max_time_filter.replace("T", " "))
+        start_debug_chunks = []
+        total_start_time_ms = 0.0
+        current_start_dt = _parse_time_string(min_time_filter)
+        final_end_dt = (
+            _parse_time_string(max_time_filter)
+            if max_time_filter
+            else datetime.now()
+        )
 
-        start_sql = f"SELECT ID FROM SystemEvents WHERE {' AND '.join(start_where_clauses)} ORDER BY ID ASC LIMIT 1"
-        params = tuple(start_params)
+        chunk_index = 0
+        while start_id is None and current_start_dt < final_end_dt:
+            minutes_to_add = chunk_sizes_minutes[
+                min(chunk_index, len(chunk_sizes_minutes) - 1)
+            ]
+            chunk_end_dt = current_start_dt + timedelta(minutes=minutes_to_add)
 
-        start_time = time.perf_counter()
-        async with conn.execute(start_sql, params) as cursor:
-            row = await cursor.fetchone()
-            start_id = row["ID"] if row else None
-        elapsed_ms = (time.perf_counter() - start_time) * 1000
+            start_sql = "SELECT ID FROM SystemEvents WHERE ReceivedAt >= ? AND ReceivedAt < ? ORDER BY ID ASC LIMIT 1"
+            start_params = (
+                current_start_dt.strftime(db_time_format),
+                chunk_end_dt.strftime(db_time_format),
+            )
+
+            start_time = time.perf_counter()
+            async with conn.execute(start_sql, start_params) as cursor:
+                row = await cursor.fetchone()
+                start_id = row["ID"] if row else None
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            total_start_time_ms += elapsed_ms
+
+            start_debug_chunks.append(
+                f"  - Chunk ({minutes_to_add}m): {start_params} -> Found: {start_id is not None} ({elapsed_ms:.2f}ms)"
+            )
+            current_start_dt = chunk_end_dt
+            chunk_index += 1
+
         debug_queries.append(
-            f"Boundary Query (Start):\n"
-            f"  Query: {start_sql}\n"
-            f"  Parameters: {params}\n"
-            f"  Result ID: {start_id}\n"
-            f"  Time: {elapsed_ms:.2f}ms"
+            f"Boundary Query (Start):\n  Result ID: {start_id}\n  Total Time: {total_start_time_ms:.2f}ms\n"
+            + "\n".join(start_debug_chunks)
         )
 
     # --- Find End ID ---
     if max_time_filter:
-        # Find the first ID *after* the end time.
-        end_boundary_sql = "SELECT ID FROM SystemEvents WHERE ReceivedAt > ? ORDER BY ID ASC LIMIT 1"
-        params = (max_time_filter.replace("T", " "),)
-        start_time = time.perf_counter()
+        end_debug_chunks = []
+        total_end_time_ms = 0.0
+        end_dt = _parse_time_string(max_time_filter)
+
         next_id_after_end = None
-        async with conn.execute(end_boundary_sql, params) as cursor:
-            row = await cursor.fetchone()
-            next_id_after_end = row["ID"] if row else None
+        current_search_dt = end_dt
+
+        total_search_duration = timedelta(0)
+        max_search_forward = timedelta(days=1)
+        chunk_index = 0
+
+        while (
+            next_id_after_end is None
+            and total_search_duration < max_search_forward
+        ):
+            minutes_to_add = chunk_sizes_minutes[
+                min(chunk_index, len(chunk_sizes_minutes) - 1)
+            ]
+            chunk_duration = timedelta(minutes=minutes_to_add)
+            chunk_end_dt = current_search_dt + chunk_duration
+
+            end_boundary_sql = "SELECT ID FROM SystemEvents WHERE ReceivedAt > ? AND ReceivedAt < ? ORDER BY ID ASC LIMIT 1"
+            end_params = (
+                current_search_dt.strftime(db_time_format),
+                chunk_end_dt.strftime(db_time_format),
+            )
+
+            start_time = time.perf_counter()
+            async with conn.execute(end_boundary_sql, end_params) as cursor:
+                row = await cursor.fetchone()
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            total_end_time_ms += elapsed_ms
+            end_debug_chunks.append(
+                f"  - Chunk ({minutes_to_add}m): {end_params} -> Found: {row is not None} ({elapsed_ms:.2f}ms)"
+            )
+
+            if row:
+                next_id_after_end = row["ID"]
+                break
+
+            current_search_dt = chunk_end_dt
+            total_search_duration += chunk_duration
+            chunk_index += 1
 
         if next_id_after_end:
-            # The true end ID is the one right before the first log outside our time window.
             end_id = next_id_after_end - 1
         else:
-            # No logs exist after the specified end time. Find the last log *within* the valid time range.
+            # Fallback if no logs exist after the end time.
+            # This query finds the last log within the complete time window.
             fallback_clauses = ["ReceivedAt <= ?"]
-            fallback_params = [max_time_filter.replace("T", " ")]
+            fallback_params = [end_dt.strftime(db_time_format)]
+
             if min_time_filter:
+                min_dt = _parse_time_string(min_time_filter)
                 fallback_clauses.append("ReceivedAt >= ?")
-                fallback_params.append(min_time_filter.replace("T", " "))
+                fallback_params.append(min_dt.strftime(db_time_format))
 
             fallback_sql = f"SELECT MAX(ID) FROM SystemEvents WHERE {' AND '.join(fallback_clauses)}"
+
+            start_time = time.perf_counter()
             async with conn.execute(
                 fallback_sql, tuple(fallback_params)
             ) as cursor:
                 row = await cursor.fetchone()
                 end_id = row[0] if row else None
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            total_end_time_ms += elapsed_ms
+            end_debug_chunks.append(
+                f"  - Fallback MAX(ID) Query -> Found: {end_id is not None} ({elapsed_ms:.2f}ms)"
+            )
 
-        elapsed_ms = (time.perf_counter() - start_time) * 1000
         debug_queries.append(
-            f"Boundary Query (End):\n"
-            f"  Query: {end_boundary_sql}\n"
-            f"  Parameters: {params}\n"
-            f"  Resulting Next ID: {next_id_after_end}\n"
-            f"  Calculated End ID: {end_id}\n"
-            f"  Time: {elapsed_ms:.2f}ms"
+            f"Boundary Query (End):\n  Calculated End ID: {end_id}\n  Total Time: {total_end_time_ms:.2f}ms\n"
+            + "\n".join(end_debug_chunks)
         )
 
-    # If only max_time is provided, start_id will be None from above. We should start from the beginning.
     if max_time_filter and not min_time_filter:
-        start_id = 1  # Assuming IDs start at 1
+        start_id = 1
 
     return start_id, end_id, debug_queries
 
