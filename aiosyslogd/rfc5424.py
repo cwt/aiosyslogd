@@ -32,6 +32,9 @@ RFC3164_PATTERN: re.Pattern[str] = re.compile(
     re.DOTALL,
 )
 
+# Pattern to extract PID from the tag, if present.
+PID_PATTERN: re.Pattern[str] = re.compile(r"^(.*)\[(\d+)\]$")
+
 
 def convert_rfc3164_to_rfc5424(message: str, debug_mode: bool = False) -> str:
     """
@@ -55,7 +58,7 @@ def convert_rfc3164_to_rfc5424(message: str, debug_mode: bool = False) -> str:
 
     app_name: str = raw_tag
     procid: str = "-"
-    pid_match: re.Match[str] | None = re.match(r"^(.*)\[(\d+)\]$", raw_tag)
+    pid_match: re.Match[str] | None = PID_PATTERN.match(raw_tag)
     if pid_match:
         app_name = pid_match.group(1)
         procid = pid_match.group(2)
