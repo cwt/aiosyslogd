@@ -1,6 +1,6 @@
 [project]
 name = "aiosyslogd"
-version = "0.2.7"
+version = "0.2.8"
 description = "Asynchronous Syslog server using asyncio, with an optional uvloop integration and SQLite backend."
 authors = [
     {name = "Chaiwat Suttipongsakul",email = "cwt@bashell.com"}
