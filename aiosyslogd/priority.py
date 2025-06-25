@@ -44,12 +44,12 @@ class SyslogMatrix:
 
     def __init__(self) -> None:
         """Initializes the SyslogMatrix with a mapping of priority codes."""
-        self.matrix: Dict[str, Tuple[str, str]] = {}
-        i: int = 0
-        for facility in self.FACILITIES:
-            for level in self.LEVELS:
-                self.matrix[str(i)] = (facility, level)
-                i += 1
+        self.matrix: Dict[str, Tuple[str, str]] = {
+            str(i): (facility, level)
+            for i, (facility, level) in enumerate(
+                (f, l) for f in self.FACILITIES for l in self.LEVELS
+            )
+        }
 
     def decode(
         self, code: str | int

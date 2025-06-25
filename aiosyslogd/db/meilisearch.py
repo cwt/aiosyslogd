@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 from . import BaseDatabase
+from collections import defaultdict
+from loguru import logger
 from meilisearch_python_sdk import AsyncClient
 from meilisearch_python_sdk.errors import MeilisearchApiError
 from meilisearch_python_sdk.models.settings import (
@@ -8,7 +10,6 @@ from meilisearch_python_sdk.models.settings import (
 )
 from typing import Any, Dict, List, Set
 import asyncio
-from loguru import logger
 
 
 class MeilisearchDriver(BaseDatabase):
@@ -98,11 +99,9 @@ class MeilisearchDriver(BaseDatabase):
         if not batch:
             return
 
-        batches_by_index: Dict[str, List[Dict[str, Any]]] = {}
+        batches_by_index: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         for i, msg in enumerate(batch):
             index_name = msg["ReceivedAt"].strftime("SystemEvents%Y%m")
-            if index_name not in batches_by_index:
-                batches_by_index[index_name] = []
 
             # Meilisearch needs a unique ID for each document.
             # ID must be alphanumeric, no periods allowed.
