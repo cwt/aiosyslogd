@@ -6,6 +6,7 @@ import sys
 
 # --- Import the module and app to be tested ---
 from aiosyslogd import web
+from aiosyslogd.db import sqlite_utils
 
 
 @pytest.fixture
@@ -63,7 +64,7 @@ async def test_index_route_no_dbs(client):
         assert "No SQLite database files found" in response_data
 
 
-@patch("aiosyslogd.web.glob")
+@patch("aiosyslogd.db.sqlite_utils.glob")
 def test_get_available_databases(mock_glob):
     """
     Tests that get_available_databases correctly finds, sorts (desc),
@@ -81,7 +82,7 @@ def test_get_available_databases(mock_glob):
 
     # --- Act ---
     with patch("aiosyslogd.web.CFG", mock_config):
-        available_dbs = web.get_available_databases()
+        available_dbs = sqlite_utils.get_available_databases(mock_config)
 
     # --- Assert ---
     # Verify that glob.glob was called with the correct search pattern
@@ -124,7 +125,7 @@ async def test_get_time_boundary_ids():
     # --- Act: Call the function with a specific time window ---
     min_time = "2025-06-20T11:00:00"
     max_time = "2025-06-20T12:00:00"
-    start_id, end_id, debug_queries = await web.get_time_boundary_ids(
+    start_id, end_id, debug_queries = await sqlite_utils.get_time_boundary_ids(
         conn, min_time, max_time
     )
 
@@ -138,7 +139,7 @@ async def test_get_time_boundary_ids():
     # --- Act & Assert: Test a time range with no matching logs ---
     min_time_no_match = "2025-07-01T00:00:00"
     max_time_no_match = "2025-07-01T23:59:59"
-    start_id_none, end_id_none, _ = await web.get_time_boundary_ids(
+    start_id_none, end_id_none, _ = await sqlite_utils.get_time_boundary_ids(
         conn, min_time_no_match, max_time_no_match
     )
     assert start_id_none is None
@@ -166,7 +167,7 @@ def test_build_log_query_all_filters():
     end_id = 1500
 
     # --- Act: Call the function with all parameters ---
-    result = web.build_log_query(
+    result = sqlite_utils.build_log_query(
         search_query, filters, last_id, page_size, direction, start_id, end_id
     )
 
@@ -245,7 +246,7 @@ class TestLogQuery:
         """
         # --- Arrange: Case 1 - Approximate count should be TRUE ---
         # No search query, no host filter, but has a time filter
-        ctx_approx = web.QueryContext(
+        ctx_approx = sqlite_utils.QueryContext(
             db_path="test.db",
             search_query="",
             filters={"from_host": "", "received_at_min": "2025-01-01T00:00"},
@@ -256,7 +257,7 @@ class TestLogQuery:
 
         # --- Arrange: Case 2 - Approximate count should be FALSE ---
         # Has a search query
-        ctx_no_approx_search = web.QueryContext(
+        ctx_no_approx_search = sqlite_utils.QueryContext(
             db_path="test.db",
             search_query="error",
             filters={"from_host": "", "received_at_min": "2025-01-01T00:00"},
@@ -267,7 +268,7 @@ class TestLogQuery:
 
         # --- Arrange: Case 3 - Approximate count should be FALSE ---
         # Has a host filter
-        ctx_no_approx_host = web.QueryContext(
+        ctx_no_approx_host = sqlite_utils.QueryContext(
             db_path="test.db",
             search_query="",
             filters={
@@ -281,7 +282,7 @@ class TestLogQuery:
 
         # --- Arrange: Case 4 - Approximate count should be FALSE ---
         # No time filter
-        ctx_no_approx_no_time = web.QueryContext(
+        ctx_no_approx_no_time = sqlite_utils.QueryContext(
             db_path="test.db",
             search_query="",
             filters={"from_host": ""},
@@ -291,10 +292,10 @@ class TestLogQuery:
         )
 
         # --- Act ---
-        query_approx = web.LogQuery(ctx_approx)
-        query_no_approx_search = web.LogQuery(ctx_no_approx_search)
-        query_no_approx_host = web.LogQuery(ctx_no_approx_host)
-        query_no_approx_no_time = web.LogQuery(ctx_no_approx_no_time)
+        query_approx = sqlite_utils.LogQuery(ctx_approx)
+        query_no_approx_search = sqlite_utils.LogQuery(ctx_no_approx_search)
+        query_no_approx_host = sqlite_utils.LogQuery(ctx_no_approx_host)
+        query_no_approx_no_time = sqlite_utils.LogQuery(ctx_no_approx_no_time)
 
         # --- Assert ---
         assert query_approx.use_approximate_count is True
@@ -311,7 +312,7 @@ class TestLogQuery:
         It should use the exact COUNT(*) and standard query building.
         """
         # --- Arrange ---
-        ctx = web.QueryContext(
+        ctx = sqlite_utils.QueryContext(
             db_path="test.db",
             search_query="critical error",
             filters={
@@ -350,9 +351,9 @@ class TestLogQuery:
             "aiosqlite.connect", return_value=mock_connect_cm
         ) as mock_connect_func:
             with patch(
-                "aiosyslogd.web.get_time_boundary_ids"
+                "aiosyslogd.db.sqlite_utils.get_time_boundary_ids"
             ) as mock_get_bounds:
-                log_query = web.LogQuery(ctx)
+                log_query = sqlite_utils.LogQuery(ctx)
                 results = await log_query.run()
 
         # --- Assert ---
@@ -386,7 +387,7 @@ class TestLogQuery:
         Tests that LogQuery.run() gracefully handles database exceptions.
         """
         # --- Arrange ---
-        ctx = web.QueryContext(
+        ctx = sqlite_utils.QueryContext(
             db_path="locked.db",
             search_query="",
             filters={},
@@ -401,7 +402,7 @@ class TestLogQuery:
             "aiosqlite.connect", side_effect=error_to_raise(error_message)
         ) as mock_connect:
             # --- Act ---
-            log_query = web.LogQuery(ctx)
+            log_query = sqlite_utils.LogQuery(ctx)
             results = await log_query.run()
 
         # --- Assert ---
@@ -417,7 +418,7 @@ class TestLogQuery:
         function and sets the instance attributes.
         """
         # --- Arrange ---
-        ctx = web.QueryContext(
+        ctx = sqlite_utils.QueryContext(
             db_path="test.db",
             search_query="",
             filters={
@@ -428,13 +429,13 @@ class TestLogQuery:
             direction="next",
             page_size=50,
         )
-        log_query = web.LogQuery(ctx)
+        log_query = sqlite_utils.LogQuery(ctx)
         log_query.conn = AsyncMock()  # Mock the connection attribute
 
         mock_return_value = (100, 200, ["Debug info for boundaries"])
 
         with patch(
-            "aiosyslogd.web.get_time_boundary_ids",
+            "aiosyslogd.db.sqlite_utils.get_time_boundary_ids",
             return_value=mock_return_value,
         ) as mock_get_bounds:
             # --- Act ---
@@ -468,7 +469,7 @@ class TestLogQuery:
         or the standard COUNT(*) query based on the conditions.
         """
         # --- Arrange ---
-        ctx = web.QueryContext(
+        ctx = sqlite_utils.QueryContext(
             db_path="test.db",
             search_query="",
             filters={},
@@ -476,7 +477,7 @@ class TestLogQuery:
             direction="next",
             page_size=50,
         )
-        log_query = web.LogQuery(ctx)
+        log_query = sqlite_utils.LogQuery(ctx)
         log_query.use_approximate_count = use_approx
         log_query.start_id = start_id
         log_query.end_id = end_id
@@ -492,7 +493,9 @@ class TestLogQuery:
         mock_conn.execute = MagicMock(return_value=mock_execute_cm)
         log_query.conn = mock_conn
 
-        with patch("aiosyslogd.web.build_log_query") as mock_build_query:
+        with patch(
+            "aiosyslogd.db.sqlite_utils.build_log_query"
+        ) as mock_build_query:
             # --- Act ---
             await log_query._get_total_log_count()
 
@@ -530,7 +533,7 @@ class TestLogQuery:
         and uses the original start_id for all other cases.
         """
         # --- Arrange ---
-        ctx = web.QueryContext(
+        ctx = sqlite_utils.QueryContext(
             db_path="test.db",
             search_query="",
             filters={},
@@ -538,7 +541,7 @@ class TestLogQuery:
             direction="next",
             page_size=50,
         )
-        log_query = web.LogQuery(ctx)
+        log_query = sqlite_utils.LogQuery(ctx)
         log_query.use_approximate_count = use_approx
         log_query.start_id = start_id
         log_query.end_id = end_id
@@ -552,7 +555,9 @@ class TestLogQuery:
         mock_conn.execute = MagicMock(return_value=mock_execute_cm)
         log_query.conn = mock_conn
 
-        with patch("aiosyslogd.web.build_log_query") as mock_build_query:
+        with patch(
+            "aiosyslogd.db.sqlite_utils.build_log_query"
+        ) as mock_build_query:
             # --- Act ---
             await log_query._fetch_log_page()
 
@@ -593,8 +598,15 @@ class TestLogQuery:
         Tests that _prepare_pagination correctly sets flags and trims the log list.
         """
         # --- Arrange ---
-        ctx = web.QueryContext(db_path="", search_query="", filters={}, last_id=last_id, direction=direction, page_size=50)
-        log_query = web.LogQuery(ctx)
+        ctx = sqlite_utils.QueryContext(
+            db_path="",
+            search_query="",
+            filters={},
+            last_id=last_id,
+            direction=direction,
+            page_size=50,
+        )
+        log_query = sqlite_utils.LogQuery(ctx)
         # Use a copy of the list to prevent mutation issues.
         log_query.results["logs"] = input_logs.copy()
 
