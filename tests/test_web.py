@@ -57,11 +57,16 @@ async def test_index_route_no_dbs(client):
     """
     Tests the index route when no database files are found.
     """
-    with patch("aiosyslogd.web.get_available_databases", return_value=[]):
+    with patch(
+        "aiosyslogd.web.get_available_databases",
+        new_callable=AsyncMock,
+        return_value=[],
+    ) as mock_get_dbs:
         response = await client.get("/")
         assert response.status_code == 200
         response_data = await response.get_data(as_text=True)
         assert "No SQLite database files found" in response_data
+        mock_get_dbs.assert_called_once()
 
 
 @pytest.mark.asyncio
