@@ -272,7 +272,7 @@ class LogQuery:
 
     def __init__(self, context: QueryContext, logger: Any = None):
         """Initializes the LogQuery with a QueryContext."""
-        if logger is None:
+        if logger is None:  # Use a default logger if none provided
             _logger.remove()
             _logger.add(
                 sys.stderr,
