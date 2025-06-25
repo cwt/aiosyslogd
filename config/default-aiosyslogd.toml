@@ -17,4 +17,4 @@ database = "syslog.sqlite3"
 [database.meilisearch]
 url = "http://127.0.0.1:7700"
 # Set an API key if you have one configured for Meilisearch
-api_key = None
+api_key = ""
