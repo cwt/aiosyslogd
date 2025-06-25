@@ -311,6 +311,133 @@ def build_log_query(
     }
 
 
+async def fetch_logs_from_db(
+    db_path: str,
+    search_query: str,
+    filters: Dict[str, Any],
+    last_id: int | None,
+    direction: str,
+    page_size: int,
+) -> Dict[str, Any]:
+    """
+    Connects to the database, executes the appropriate log query,
+    and returns the results and pagination info.
+    """
+    results: Dict[str, Any] = {
+        "logs": [],
+        "total_logs": 0,
+        "page_info": {},
+        "debug_info": [],
+        "error": None,
+    }
+    start_id: int | None = None
+    end_id: int | None = None
+
+    # Define the optimization scenario for count approximation
+    use_approximate_count = (
+        not search_query
+        and not filters["from_host"]
+        and (filters["received_at_min"] or filters["received_at_max"])
+    )
+
+    try:
+        db_uri = f"file:{db_path}?mode=ro"
+        async with aiosqlite.connect(
+            db_uri,
+            uri=True,
+            detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
+        ) as conn:
+            conn.row_factory = aiosqlite.Row
+
+            min_time_filter = filters["received_at_min"]
+            max_time_filter = filters["received_at_max"]
+
+            # Boundary ID calculation is always useful
+            if min_time_filter or max_time_filter:
+                start_id, end_id, boundary_queries = (
+                    await get_time_boundary_ids(
+                        conn, min_time_filter, max_time_filter
+                    )
+                )
+                results["debug_info"].extend(boundary_queries)
+
+            # --- COUNTING STEP (Optimized or Standard) ---
+            if use_approximate_count and end_id is not None:
+                app.logger.debug("Using optimized approximate count.")
+                start_id_for_count = start_id if start_id is not None else 1
+                results["total_logs"] = (end_id - start_id_for_count) + 1
+            else:
+                app.logger.debug("Using standard COUNT(*) query.")
+                # Build a temporary query part just for the count
+                count_query_parts = build_log_query(
+                    search_query, filters, None, 0, "next", start_id, end_id
+                )
+                async with conn.execute(
+                    count_query_parts["count_sql"],
+                    count_query_parts["count_params"],
+                ) as cursor:
+                    count_result = await cursor.fetchone()
+                    if count_result:
+                        results["total_logs"] = count_result[0]
+
+            # --- LOG FETCHING STEP ---
+            # For the first page of a simple time query, we adjust the start_id for performance.
+            effective_start_id = start_id
+            if use_approximate_count and last_id is None and end_id is not None:
+                effective_start_id = max(
+                    start_id or 1, end_id - page_size - 50
+                )  # Widen the chunk slightly
+                results["debug_info"].append(
+                    f"Applied fast-path adjustment to start_id: {effective_start_id}"
+                )
+
+            query_parts = build_log_query(
+                search_query,
+                filters,
+                last_id,
+                page_size,
+                direction,
+                effective_start_id,
+                end_id,
+            )
+            results["debug_info"].append(query_parts["debug_query"])
+
+            async with conn.execute(
+                query_parts["main_sql"], query_parts["main_params"]
+            ) as cursor:
+                results["logs"] = await cursor.fetchall()
+
+            # --- PAGINATION LOGIC (Common to both paths) ---
+            if direction == "prev":
+                results["logs"].reverse()
+
+            has_more = len(results["logs"]) > page_size
+            results["logs"] = results["logs"][:page_size]
+
+            results["page_info"] = {
+                "has_next_page": False,
+                "next_last_id": (
+                    results["logs"][-1]["ID"] if results["logs"] else None
+                ),
+                "has_prev_page": False,
+                "prev_last_id": (
+                    results["logs"][0]["ID"] if results["logs"] else None
+                ),
+            }
+            if direction == "prev":
+                results["page_info"]["has_prev_page"] = has_more
+                results["page_info"]["has_next_page"] = last_id is not None
+            else:
+                results["page_info"]["has_next_page"] = has_more
+                results["page_info"]["has_prev_page"] = last_id is not None
+
+    except (aiosqlite.OperationalError, aiosqlite.DatabaseError) as e:
+        results["error"] = str(e)
+        logger.opt(exception=True).error(f"Database query failed for {db_path}")
+
+    return results
+
+
 @app.before_serving
 async def startup() -> None:
     """Function to run actions before the server starts serving."""
@@ -325,20 +452,26 @@ async def startup() -> None:
 async def index() -> str | Response:
     """Main route for displaying and searching logs."""
     context: Dict[str, Any] = {
-        "logs": [],
-        "total_logs": 0,
-        "query_time": 0.0,
         "search_query": request.args.get("q", "").strip(),
         "available_dbs": get_available_databases(),
-        "selected_db": None,
         "error": None,
-        "page_info": {},
+        "selected_db": None,
         "filters": {
             key: request.args.get(key, "").strip()
             for key in ["from_host", "received_at_min", "received_at_max"]
         },
-        "debug_query": "",
         "request": request,
+        # Pre-initialize all keys the template might need
+        "logs": [],
+        "total_logs": 0,
+        "page_info": {
+            "has_next_page": False,
+            "next_last_id": None,
+            "has_prev_page": False,
+            "prev_last_id": None,
+        },
+        "debug_query": "",
+        "query_time": 0.0,
     }
 
     if not context["available_dbs"]:
@@ -349,112 +482,38 @@ async def index() -> str | Response:
         return await render_template("index.html", **context)
 
     # --- Get parameters from request ---
-    context["selected_db"] = request.args.get(
-        "db_file", context["available_dbs"][0]
-    )
+    selected_db = request.args.get("db_file", context["available_dbs"][0])
+    if selected_db not in context["available_dbs"]:
+        abort(404, "Database file not found.")
+    context["selected_db"] = selected_db
+
     last_id: int | None = request.args.get("last_id", type=int)
     direction: str = request.args.get("direction", "next").strip()
     page_size: int = 50
 
-    if context["selected_db"] not in context["available_dbs"]:
-        abort(404, "Database file not found.")
+    start_time: float = time.perf_counter()
 
-    start_id: int | None = None
-    end_id: int | None = None
-    debug_info: List[str] = []
+    # --- Fetch data from the database using the dedicated function ---
+    db_results = await fetch_logs_from_db(
+        db_path=selected_db,
+        search_query=context["search_query"],
+        filters=context["filters"],
+        last_id=last_id,
+        direction=direction,
+        page_size=page_size,
+    )
 
-    # --- Execute Query ---
-    try:
-        start_time: float = time.perf_counter()
-        db_uri: str = f"file:{context['selected_db']}?mode=ro"
-        async with aiosqlite.connect(
-            db_uri,
-            uri=True,
-            detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
-        ) as conn:
-            conn.row_factory = aiosqlite.Row
-
-            min_time_filter = context["filters"]["received_at_min"]
-            max_time_filter = context["filters"]["received_at_max"]
-
-            if min_time_filter or max_time_filter:
-                start_id, end_id, boundary_queries = (
-                    await get_time_boundary_ids(
-                        conn, min_time_filter, max_time_filter
-                    )
-                )
-                debug_info.extend(boundary_queries)
-
-                # Early exit: If a time boundary was set but no logs were found for it,
-                # the result set is empty.
-                if (min_time_filter and start_id is None) and (
-                    max_time_filter and end_id is None
-                ):
-                    context["logs"], context["total_logs"] = [], 0
-                    context["query_time"] = time.perf_counter() - start_time
-                    context["debug_query"] = "\n\n---\n\n".join(debug_info)
-                    context["page_info"] = {
-                        "has_next_page": False,
-                        "next_last_id": None,
-                        "has_prev_page": False,
-                        "prev_last_id": None,
-                    }
-                    return await render_template("index.html", **context)
-
-            # --- Build and Execute Queries ---
-            query_parts = build_log_query(
-                context["search_query"],
-                context["filters"],
-                last_id,
-                page_size,
-                direction,
-                start_id,
-                end_id,
-            )
-            debug_info.append(query_parts["debug_query"])
-
-            async with conn.execute(
-                query_parts["count_sql"], query_parts["count_params"]
-            ) as cursor:
-                result = await cursor.fetchone()
-                if result:
-                    context["total_logs"] = result[0]
-            async with conn.execute(
-                query_parts["main_sql"], query_parts["main_params"]
-            ) as cursor:
-                context["logs"] = await cursor.fetchall()
-
-        context["query_time"] = time.perf_counter() - start_time
-        context["debug_query"] = "\n\n---\n\n".join(debug_info)
-
-    except (aiosqlite.OperationalError, aiosqlite.DatabaseError) as e:
-        context["error"] = str(e)
-        app.logger.opt(exception=True).error(  # type: ignore[attr-defined]
-            f"Database query failed for {context['selected_db']}"
-        )
-
-    # --- Prepare Pagination & Rendering ---
-    if direction == "prev":
-        context["logs"].reverse()
-
-    has_more = len(context["logs"]) > page_size
-    context["logs"] = context["logs"][:page_size]
-
-    page_info = {
-        "has_next_page": False,
-        "next_last_id": context["logs"][-1]["ID"] if context["logs"] else None,
-        "has_prev_page": False,
-        "prev_last_id": context["logs"][0]["ID"] if context["logs"] else None,
-    }
-
-    if direction == "prev":
-        page_info["has_prev_page"] = has_more
-        page_info["has_next_page"] = True
-    else:  # 'next' direction
-        page_info["has_next_page"] = has_more
-        page_info["has_prev_page"] = last_id is not None
-
-    context["page_info"] = page_info
+    # --- Update context with results for rendering ---
+    context.update(
+        {
+            "logs": db_results["logs"],
+            "total_logs": db_results["total_logs"],
+            "page_info": db_results["page_info"],
+            "debug_query": "\n\n---\n\n".join(db_results["debug_info"]),
+            "error": db_results["error"],
+            "query_time": time.perf_counter() - start_time,
+        }
+    )
 
     return await render_template("index.html", **context)
 
