@@ -3,6 +3,7 @@
 # aiosyslogd/web.py
 
 from .config import load_config
+from .db.logs_utils import redact
 from .db.sqlite_utils import get_available_databases, QueryContext, LogQuery
 from datetime import datetime
 from loguru import logger
@@ -28,6 +29,7 @@ except ImportError:
 CFG: Dict[str, Any] = load_config()
 WEB_SERVER_CFG: Dict[str, Any] = CFG.get("web_server", {})
 DEBUG: bool = WEB_SERVER_CFG.get("debug", False)
+REDACT: bool = WEB_SERVER_CFG.get("redact", False)
 
 log_level: str = "DEBUG" if DEBUG else "INFO"
 logger.remove()
@@ -118,9 +120,20 @@ async def index() -> str | Response:
     log_query = LogQuery(query_context, logger)
     db_results = await log_query.run()
 
+    redacted_logs = None
+    # If REDACT is enabled, redact sensitive information in logs.
+    if REDACT and db_results["logs"]:
+        redacted_logs = (
+            {
+                key: redact(row[key]) if key == "Message" else row[key]
+                for key in row.keys()
+            }
+            for row in db_results["logs"]
+        )
+
     context.update(
         {
-            "logs": db_results["logs"],
+            "logs": redacted_logs or db_results["logs"],
             "total_logs": db_results["total_logs"],
             "page_info": db_results["page_info"],
             "debug_query": "\n\n---\n\n".join(db_results["debug_info"]),

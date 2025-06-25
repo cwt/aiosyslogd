@@ -31,6 +31,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "bind_ip": "0.0.0.0",
         "bind_port": 5141,
         "debug": False,
+        "redact": False,
     },
 }
 

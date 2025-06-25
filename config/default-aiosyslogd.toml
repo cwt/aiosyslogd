@@ -1,15 +1,21 @@
 [server]
 bind_ip = "0.0.0.0"
 bind_port = 5140
-debug = true
+debug = false
 log_dump = false
 
 [database]
 # Driver can be "sqlite", or "meilisearch"
 driver = "sqlite"
-batch_size = 1000
+batch_size = 100
 batch_timeout = 5
 sql_dump = false # Not applicable for Meilisearch
+
+[web_server]
+bind_ip = "0.0.0.0"
+bind_port = 5141
+debug = false
+redact = false
 
 [database.sqlite]
 database = "syslog.sqlite3"
