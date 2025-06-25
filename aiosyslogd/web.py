@@ -72,7 +72,7 @@ async def index() -> str | Response:
     """Main route for displaying and searching logs."""
     context: Dict[str, Any] = {
         "request": request,
-        "available_dbs": get_available_databases(CFG),
+        "available_dbs": await get_available_databases(CFG),
         "search_query": request.args.get("q", "").strip(),
         "filters": {
             key: request.args.get(key, "").strip()

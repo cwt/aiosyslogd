@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from loguru import logger as _logger
 from typing import Any, Dict, List, Tuple
 import aiosqlite
+import asyncio
 import glob
 import os
 import sqlite3
@@ -11,7 +12,7 @@ import time
 
 
 # --- Helper Functions ---
-def get_available_databases(cfg: Dict) -> List[str]:
+async def get_available_databases(cfg: Dict) -> List[str]:
     """Finds available monthly SQLite database files."""
     db_template: str = (
         cfg.get("database", {})
@@ -20,7 +21,7 @@ def get_available_databases(cfg: Dict) -> List[str]:
     )
     base, ext = os.path.splitext(db_template)
     search_pattern: str = f"{base}_*{ext}"
-    files: List[str] = glob.glob(search_pattern)
+    files: List[str] = await asyncio.to_thread(glob.glob, search_pattern)
     files.sort(reverse=True)
     return files
 

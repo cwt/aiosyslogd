@@ -64,8 +64,9 @@ async def test_index_route_no_dbs(client):
         assert "No SQLite database files found" in response_data
 
 
+@pytest.mark.asyncio
 @patch("aiosyslogd.db.sqlite_utils.glob")
-def test_get_available_databases(mock_glob):
+async def test_get_available_databases(mock_glob):
     """
     Tests that get_available_databases correctly finds, sorts (desc),
     and returns a list of database files based on the config pattern.
@@ -82,7 +83,7 @@ def test_get_available_databases(mock_glob):
 
     # --- Act ---
     with patch("aiosyslogd.web.CFG", mock_config):
-        available_dbs = sqlite_utils.get_available_databases(mock_config)
+        available_dbs = await sqlite_utils.get_available_databases(mock_config)
 
     # --- Assert ---
     # Verify that glob.glob was called with the correct search pattern
