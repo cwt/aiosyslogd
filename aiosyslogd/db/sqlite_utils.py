@@ -21,6 +21,8 @@ async def get_available_databases(cfg: Dict) -> List[str]:
     )
     base, ext = os.path.splitext(db_template)
     search_pattern: str = f"{base}_*{ext}"
+    # In case that there are a lot of files,
+    # we use asyncio.to_thread to avoid blocking the event loop.
     files: List[str] = await asyncio.to_thread(glob.glob, search_pattern)
     files.sort(reverse=True)
     return files
