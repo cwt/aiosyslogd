@@ -105,7 +105,7 @@ class LogQuery:
         }
         self.start_id: int | None = None
         self.end_id: int | None = None
-        # CORRECTED: Ensure the expression evaluates to a proper boolean
+        # Ensure the expression evaluates to a proper boolean
         self.use_approximate_count = (
             not self.ctx.search_query
             and not self.ctx.filters.get("from_host")

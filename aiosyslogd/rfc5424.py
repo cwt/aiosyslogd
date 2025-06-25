@@ -65,9 +65,11 @@ def convert_rfc3164_to_rfc5424(message: str, debug_mode: bool = False) -> str:
 
     try:
         now: datetime = datetime.now()
-        # Add the current year to the string and the format to avoid the Python 3.13+ DeprecationWarning
+        # Add the current year to the string and the format.
+        # This to avoid Python 3.13+ DeprecationWarning.
         date_string_with_year: str = (
-            f"{now.year} {parts['mon']} {parts['day']} {parts['hr']}:{parts['min']}:{parts['sec']}"
+            f"{now.year} {parts['mon']} {parts['day']} "
+            f"{parts['hr']}:{parts['min']}:{parts['sec']}"
         )
         dt_naive: datetime = datetime.strptime(
             date_string_with_year,
