@@ -302,7 +302,8 @@ async def get_time_boundary_ids(
             current_start_dt = chunk_end_dt
             chunk_index += 1
         debug_queries.append(
-            f"Boundary Query (Start):\n  Result ID: {start_id}\n"
+            "Boundary Query (Start):\n"
+            f"  Result ID: {start_id}\n"
             f"  Total Time: {total_start_time_ms:.2f}ms\n"
             + "\n".join(start_debug_chunks)
         )
@@ -396,51 +397,72 @@ def build_log_query(
     end_id: int | None,
 ) -> Dict[str, Any]:
     """Constructs the SQL query and parameters for fetching logs."""
-    params: List[Any] = []
+    main_params: List[Any] = []
     where_clauses: List[str] = []
-    from_clause: str = "FROM SystemEvents"
+
+    # --- 1. Build WHERE clauses based on filters ---
+
+    # ID range filter
     if start_id is not None:
         where_clauses.append("ID >= ?")
-        params.append(start_id)
+        main_params.append(start_id)
     if end_id is not None:
         where_clauses.append("ID <= ?")
-        params.append(end_id)
+        main_params.append(end_id)
+
+    # FromHost filter
     if filters.get("from_host"):
         where_clauses.append("FromHost = ?")
-        params.append(filters["from_host"])
+        main_params.append(filters["from_host"])
+
+    # Full-Text Search (FTS) filter
     if search_query:
-        fts_where_parts: List[str] = ["Message MATCH ?"]
-        fts_params: List[Any] = [search_query]
+        fts_subquery_clauses: List[str] = ["Message MATCH ?"]
+        fts_subquery_params: List[Any] = [search_query]
+
         if start_id is not None:
-            fts_where_parts.append("rowid >= ?")
-            fts_params.append(start_id)
+            fts_subquery_clauses.append("rowid >= ?")
+            fts_subquery_params.append(start_id)
         if end_id is not None:
-            fts_where_parts.append("rowid <= ?")
-            fts_params.append(end_id)
+            fts_subquery_clauses.append("rowid <= ?")
+            fts_subquery_params.append(end_id)
+
         fts_subquery = (
             "SELECT rowid FROM SystemEvents_FTS "
-            f"WHERE {' AND '.join(fts_where_parts)}"
+            f"WHERE {' AND '.join(fts_subquery_clauses)}"
         )
         where_clauses.append(f"ID IN ({fts_subquery})")
-        params.extend(fts_params)
-    base_sql = "SELECT ID, FromHost, ReceivedAt, Message"
-    count_sql = f"SELECT COUNT(*) {from_clause}"
-    main_sql = f"{base_sql} {from_clause}"
-    if where_clauses:
-        where_sql = " WHERE " + " AND ".join(where_clauses)
-        count_sql += where_sql
-        main_sql += where_sql
-    count_params = list(params)
-    main_params = list(params)
+        main_params.extend(fts_subquery_params)
+
+    # --- 2. Assemble the base and count queries ---
+
+    from_clause = "FROM SystemEvents"
+    where_sql = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+    count_sql = f"SELECT COUNT(*) {from_clause}{where_sql}"
+    count_params = list(main_params)
+
+    # --- 3. Assemble the main query with pagination ---
+
+    base_sql = (
+        f"SELECT ID, FromHost, ReceivedAt, Message {from_clause}{where_sql}"
+    )
+
+    # Add pagination logic
     order_by, id_comparison = (
         ("ASC", ">") if direction == "prev" else ("DESC", "<")
     )
-    if last_id:
-        main_sql += (
+    if last_id is not None:
+        pagination_clause = (
             f" {'AND' if where_clauses else 'WHERE'} ID {id_comparison} ?"
         )
+        base_sql += pagination_clause
         main_params.append(last_id)
-    main_sql += f" ORDER BY ID {order_by} LIMIT {page_size + 1}"
+
+    main_sql = f"{base_sql} ORDER BY ID {order_by} LIMIT {page_size + 1}"
+
+    # --- 4. Return all query parts ---
+
     return {
         "main_sql": main_sql,
         "main_params": main_params,
