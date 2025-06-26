@@ -126,6 +126,7 @@ sql_dump = false
 bind_ip = "0.0.0.0"
 bind_port = 5141
 debug = false
+redact = false
 
 [database.sqlite]
 database = "syslog.sqlite3"
@@ -158,6 +159,10 @@ When a custom path is provided, the server will **not** create a default file if
 | database.sqlite      | database      | The path to the SQLite database file.                                    | "syslog.sqlite3"        |
 | database.meilisearch | url           | The URL of the Meilisearch instance.                                     | "http://127.0.0.1:7700" |
 | database.meilisearch | api_key       | The API key for Meilisearch (optional).                                  | ""                      |
+| web_server           | bind_ip       | The IP address the web server should bind to.                            | "0.0.0.0"               |
+| web_server           | bind_port     | The TCP port the web server should listen on.                            | 5141                    |
+| web_server           | debug         | Set to true to enable verbose logging for the web server.                | false                   |
+| web_server           | redact        | Set to true to redact the sensitive information (user, IP, MAC)          | false                   |
 
 **Note:** when sql_dump is enabled, log_dump will be disabled.
 
