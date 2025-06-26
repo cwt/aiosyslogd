@@ -16,6 +16,7 @@ class MeilisearchDriver(BaseDatabase):
     """Meilisearch database driver."""
 
     def __init__(self, config: Dict[str, Any]):
+        """Initializes the Meilisearch driver with the given configuration."""
         self.config = config
         self.debug = config.get("debug", False)
         self.client = AsyncClient(

@@ -44,6 +44,8 @@ class SyslogMatrix:
 
     def __init__(self) -> None:
         """Initializes the SyslogMatrix with a mapping of priority codes."""
+        # Create a mapping of syslog priority codes to (facility, level) tuples
+        # using a dictionary comprehension for efficient lookups and clean code.
         self.matrix: Dict[str, Tuple[str, str]] = {
             str(i): (facility, level)
             for i, (facility, level) in enumerate(
