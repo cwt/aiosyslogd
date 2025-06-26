@@ -110,7 +110,6 @@ async def index() -> str | Response:
         context["filters"]["received_at_min"] = one_hour_ago.strftime(
             "%Y-%m-%dT%H:%M"
         )
-        context["filters"]["received_at_max"] = now.strftime("%Y-%m-%dT%H:%M")
 
     if not context["available_dbs"]:
         context["error"] = (
