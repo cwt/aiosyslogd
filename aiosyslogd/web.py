@@ -125,7 +125,7 @@ async def index() -> str | Response:
     if REDACT and db_results["logs"]:
         redacted_logs = (
             {
-                key: redact(row[key]) if key == "Message" else row[key]
+                key: (redact(row[key], "▒") if key == "Message" else row[key])
                 for key in row.keys()
             }
             for row in db_results["logs"]

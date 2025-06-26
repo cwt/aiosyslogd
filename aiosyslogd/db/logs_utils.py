@@ -1,122 +1,126 @@
 import re
 
 # --- Regular Expression Patterns ---
-# This pattern is designed to catch multiple username formats:
-# - user="john.doe" (with quotes)
-# - user=johndoe (without quotes)
-# - user johndoe (space as separator)
-# It uses a VERBOSE flag to allow for comments within the regex pattern.
+# Pattern to match usernames in various formats:
 USER_PATTERN = re.compile(
     r"""
-    \b(user(?:name)?)  # Match 'user' or 'username' as a whole word (Group 1)
-    (\s*=\s*|\s+)      # Match separator: equals sign or one/more spaces (Group 2)
-    (?:                # Start a non-capturing group for the actual value
-        (["'])             # Match an opening quote (double or single) (Group 3)
-        (.*?)              # Match the content inside the quotes (non-greedy) (Group 4)
-        \3                 # Match the corresponding closing quote
-        |                  # OR
-        ([^\s"']+)         # Match an unquoted value (not a space or quote) (Group 5)
+    # Match 'user' or 'username' at word boundary
+    \b(user(?:name)?)
+    # Match optional equals sign or space
+    (\s*=\s*|\s+)
+    (?:
+        # Match opening quote (single or double)
+        (["'])
+        # Capture content excluding quotes
+        ([^"']*?)
+        # Match closing quote (same as opening)
+        \3
+        |
+        # Match unquoted username (no spaces or quotes)
+        ([^\s"']+)
     )
     """,
     re.IGNORECASE | re.VERBOSE,
 )
 
-# A comprehensive pattern for most standard IPv6 formats.
-# Handles full, compressed (::), and IPv4-mapped addresses.
-IPV6_PATTERN = re.compile(
-    r"""
-    # Full, uncompressed address (8 blocks)
-    (?:(?:[0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4})
-    |
-    # Compressed addresses with ::
-    (?:(?:[0-9a-fA-F]{1,4}:){1,7}:)
-    |
-    (?:(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4})
-    |
-    (?:(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2})
-    |
-    (?:(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3})
-    |
-    (?:(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4})
-    |
-    (?:(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5})
-    |
-    (?:[0-9a-fA-F]{1,4}:(?:(?::[0-9a-fA-F]{1,4}){1,6}))
-    |
-    # Addresses starting with a colon
-    (?::(?:(?::[0-9a-fA-F]{1,4}){1,7}|:))
-    |
-    # Link-local addresses with zone index
-    (?:fe80:(?::[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,})
-    |
-    # IPv4-mapped addresses
-    (?: ::(?:ffff(?::0{1,4}){0,1}:){0,1}
-        (?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}
-        (?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])
-    )
-    |
-    (?: (?:[0-9a-fA-F]{1,4}:){1,4}:
-        (?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}
-        (?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])
-    )
-    """,
-    re.IGNORECASE | re.VERBOSE,
-)
-
-# Standard pattern for an IPv4 address.
+# Standard pattern for an IPv4 address
 IPV4_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 
+# Simplified pattern for IPv6, assuming IPv4 is redacted first
+IPV6_PATTERN = re.compile(
+    r"""
+    (?:
+        # Standard IPv6: full or compressed
+        \b
+        (?:
+            # Full IPv6 address with 8 groups of 1-4 hex digits
+            (?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}
+            |
+            # Compressed IPv6 address with '::' for zero groups
+            (?:[0-9a-fA-F]{1,4}:){1,6}(?::[0-9a-fA-F]{1,4}){1,6}
+            |
+            # Mixed IPv6 with IPv4-mapped address
+            ::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}?
+            |
+            # Compressed IPv6 with leading zeroes
+            (?:[0-9a-fA-F]{1,4}:){1,6}:
+            |
+            # Loopback address
+            ::1
+            |
+            # Unspecified address
+            ::
+        )
+        \b
+        |
+        # Link-local: fe80::/10 with %interface
+        \b
+        fe80:(?::[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]+
+        \b
+        |
+        # IPv4-mapped: ::ffff: with redacted IPv4
+        ::ffff:█+
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 
-# Standard pattern for a MAC address (':' or '-' as separator).
-MAC_PATTERN = re.compile(r"(?:[0-9a-fA-F]{2}[:-]){5}(?:[0-9a-fA-F]{2})")
+# Pattern for IPv6 loopback address (::1) with boundaries
+IPV6_LOOPBACK_PATTERN = re.compile(
+    r"(?<![:0-9a-fA-F])::1(?![:0-9a-fA-F])", re.IGNORECASE
+)
 
-# Character used to replace sensitive data.
-REDACTION_CHAR = "█"
+# Standard pattern for a MAC address (':' or '-' as separator)
+MAC_PATTERN = re.compile(
+    r"\b(?:[0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}\b", re.IGNORECASE
+)
+
+# Character used to replace sensitive data
+REDACTION_CHAR: str = "█"
 
 
-def redact(message: str) -> str:
+def redact(message: str, fancy_redaction_char: str | None = None) -> str:
     """
     Finds and redacts sensitive information (usernames, IP addresses, MAC addresses)
     from a log message string.
 
     Args:
         message: The input log message string.
+        fancy_redaction_char: Optional character to use for redaction.
 
     Returns:
-        A new string with sensitive information replaced by '█' characters.
+        A new string with sensitive information replaced by '█' or a fancy character.
     """
 
     # --- Redaction Logic ---
-
-    # Redact user information using a replacement function (a "replacer")
-    # to handle the different captured groups from the complex regex.
     def user_replacer(match: re.Match) -> str:
-        """Determines what to do with a matched user pattern."""
-        # The first part of the match, e.g., "user=" or "user "
+        """Replaces matched usernames with redacted version."""
         prefix = f"{match.group(1)}{match.group(2)}"
-
         if match.group(4) is not None:
-            # This was a quoted match, like user="john"
             quote = match.group(3)
             value = match.group(4)
             return f"{prefix}{quote}{REDACTION_CHAR * len(value)}{quote}"
-        else:
-            # This was an unquoted match, like user=john or user john
-            value = match.group(5)
-            return f"{prefix}{REDACTION_CHAR * len(value)}"
+        value = match.group(5)
+        return f"{prefix}{REDACTION_CHAR * len(value)}"
 
-    redacted_message = USER_PATTERN.sub(user_replacer, message)
+    def simple_block_replacer(match: re.Match) -> str:
+        """Replaces blocked patterns with redacted characters."""
+        return REDACTION_CHAR * len(match.group(0))
 
-    # Redact IP and MAC addresses using a simpler lambda replacer.
-    # IMPORTANT: Redact IPv6 first, as it can contain an IPv4 address.
-    redacted_message = IPV6_PATTERN.sub(
-        lambda match: REDACTION_CHAR * len(match.group(0)), redacted_message
+    # Apply redactions in order: IPv4, IPv6, MAC, usernames
+    # Redact IPv4 first to simplify IPv6 handling for IPv4-mapped addresses
+    redacted_message = IPV4_PATTERN.sub(simple_block_replacer, message)
+    redacted_message = IPV6_PATTERN.sub(simple_block_replacer, redacted_message)
+    redacted_message = IPV6_LOOPBACK_PATTERN.sub(
+        simple_block_replacer, redacted_message
     )
-    redacted_message = IPV4_PATTERN.sub(
-        lambda match: REDACTION_CHAR * len(match.group(0)), redacted_message
-    )
-    redacted_message = MAC_PATTERN.sub(
-        lambda match: REDACTION_CHAR * len(match.group(0)), redacted_message
-    )
+    redacted_message = MAC_PATTERN.sub(simple_block_replacer, redacted_message)
+    redacted_message = USER_PATTERN.sub(user_replacer, redacted_message)
+
+    # Replace the redaction character if a fancy one is provided (e.g. "▒").
+    if fancy_redaction_char:
+        redacted_message = redacted_message.replace(
+            REDACTION_CHAR, fancy_redaction_char
+        )
 
     return redacted_message
