@@ -8,24 +8,59 @@ import re
 # It uses a VERBOSE flag to allow for comments within the regex pattern.
 USER_PATTERN = re.compile(
     r"""
-        \b(user(?:name)?)     # Match 'user' or 'username' as a whole word (Group 1)
-        (\s*=\s*|\s+)         # Match separator: equals sign or one/more spaces (Group 2)
-        (?:                   # Start a non-capturing group for the actual value
-            (["'])              # Match an opening quote (double or single) (Group 3)
-            (.*?)               # Match the content inside the quotes (non-greedy) (Group 4)
-            \3                  # Match the corresponding closing quote
-            |                   # OR
-            ([^\s"']+)          # Match an unquoted value (not a space or quote) (Group 5)
-        )
-        """,
+    \b(user(?:name)?)  # Match 'user' or 'username' as a whole word (Group 1)
+    (\s*=\s*|\s+)      # Match separator: equals sign or one/more spaces (Group 2)
+    (?:                # Start a non-capturing group for the actual value
+        (["'])             # Match an opening quote (double or single) (Group 3)
+        (.*?)              # Match the content inside the quotes (non-greedy) (Group 4)
+        \3                 # Match the corresponding closing quote
+        |                  # OR
+        ([^\s"']+)         # Match an unquoted value (not a space or quote) (Group 5)
+    )
+    """,
     re.IGNORECASE | re.VERBOSE,
 )
 
 # A comprehensive pattern for most standard IPv6 formats.
 # Handles full, compressed (::), and IPv4-mapped addresses.
 IPV6_PATTERN = re.compile(
-    r"(?:(?:[0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:(?:(?::[0-9a-fA-F]{1,4}){1,6})|:(?:(?::[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(?::[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(?:ffff(?::0{1,4}){0,1}:){0,1}(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9]))",
-    re.IGNORECASE,
+    r"""
+    # Full, uncompressed address (8 blocks)
+    (?:(?:[0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4})
+    |
+    # Compressed addresses with ::
+    (?:(?:[0-9a-fA-F]{1,4}:){1,7}:)
+    |
+    (?:(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4})
+    |
+    (?:(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2})
+    |
+    (?:(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3})
+    |
+    (?:(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4})
+    |
+    (?:(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5})
+    |
+    (?:[0-9a-fA-F]{1,4}:(?:(?::[0-9a-fA-F]{1,4}){1,6}))
+    |
+    # Addresses starting with a colon
+    (?::(?:(?::[0-9a-fA-F]{1,4}){1,7}|:))
+    |
+    # Link-local addresses with zone index
+    (?:fe80:(?::[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,})
+    |
+    # IPv4-mapped addresses
+    (?: ::(?:ffff(?::0{1,4}){0,1}:){0,1}
+        (?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}
+        (?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])
+    )
+    |
+    (?: (?:[0-9a-fA-F]{1,4}:){1,4}:
+        (?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}
+        (?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
 )
 
 # Standard pattern for an IPv4 address.
