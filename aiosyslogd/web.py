@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from loguru import logger
 from quart import Quart, render_template, request, abort, Response
 from types import ModuleType
-from typing import Any, Dict
+from typing import Any, Dict, Generator
 import aiosqlite
 import asyncio
 import sys
@@ -22,7 +22,7 @@ try:
     else:
         import uvloop
 except ImportError:
-    pass  # uvloop or winloop is an optional for speedup, not a requirement
+    pass  # uvloop or winloop is an optional for speedup, not a requirement.
 
 
 # --- Globals & App Setup ---
@@ -31,6 +31,7 @@ WEB_SERVER_CFG: Dict[str, Any] = CFG.get("web_server", {})
 DEBUG: bool = WEB_SERVER_CFG.get("debug", False)
 REDACT: bool = WEB_SERVER_CFG.get("redact", False)
 
+# Configure the loguru logger with Quart formatting.
 log_level: str = "DEBUG" if DEBUG else "INFO"
 logger.remove()
 logger.add(
@@ -39,8 +40,11 @@ logger.add(
     level=log_level,
 )
 
+# Create a Quart application instance.
 app: Quart = Quart(__name__)
+# Enable the 'do' extension for Jinja2.
 app.jinja_env.add_extension("jinja2.ext.do")
+# Replace the default Quart logger with loguru logger.
 app.logger = logger  # type: ignore[assignment]
 
 
@@ -55,6 +59,7 @@ def convert_timestamp_iso(val: bytes) -> datetime:
     return datetime.fromisoformat(val.decode())
 
 
+# Registering the adapters and converters for aiosqlite.
 aiosqlite.register_adapter(datetime, adapt_datetime_iso)
 aiosqlite.register_converter("TIMESTAMP", convert_timestamp_iso)
 
@@ -63,7 +68,7 @@ aiosqlite.register_converter("TIMESTAMP", convert_timestamp_iso)
 @app.before_serving
 async def startup() -> None:
     """Initial setup before serving requests."""
-    app.logger.info(
+    app.logger.info(  # Verify the event loop policy being used.
         f"{__name__.title()} is running with "
         f"{asyncio.get_event_loop_policy().__module__}."
     )
@@ -72,11 +77,12 @@ async def startup() -> None:
 @app.route("/")
 async def index() -> str | Response:
     """Main route for displaying and searching logs."""
+    # Prepare the context for rendering the index page.
     context: Dict[str, Any] = {
         "request": request,
         "available_dbs": await get_available_databases(CFG),
         "search_query": request.args.get("q", "").strip(),
-        "filters": {
+        "filters": {  # Dictionary comprehension to get filter values.
             key: request.args.get(key, "").strip()
             for key in ["from_host", "received_at_min", "received_at_max"]
         },
@@ -94,7 +100,7 @@ async def index() -> str | Response:
         "query_time": 0.0,
     }
 
-    # Check if the page is loaded with no specific filters
+    # Check if the page is loaded with no specific filters.
     is_unfiltered_load = (
         not context["search_query"]
         and not context["filters"]["from_host"]
@@ -103,6 +109,7 @@ async def index() -> str | Response:
     )
 
     # If it's an unfiltered load, set the default time to the last hour
+    # to avoid loading too many logs at once which can be slow.
     if is_unfiltered_load:
         now = datetime.now()
         one_hour_ago = now - timedelta(hours=1)
@@ -123,7 +130,7 @@ async def index() -> str | Response:
         abort(404, "Database file not found.")
     context["selected_db"] = selected_db
 
-    start_time: float = time.perf_counter()
+    start_time: float = time.perf_counter()  # Start measuring query time.
 
     query_context = QueryContext(
         db_path=selected_db,
@@ -137,10 +144,13 @@ async def index() -> str | Response:
     log_query = LogQuery(query_context, logger)
     db_results = await log_query.run()
 
-    redacted_logs = None
+    redacted_logs: Generator[dict[Any, str | Any], None, None] | None = None
     # If REDACT is enabled, redact sensitive information in logs.
     if REDACT and db_results["logs"]:
+        # This is a generator to avoid loading all logs into memory at once.
         redacted_logs = (
+            # Dictionary comprehension for redacting sensitive information
+            # in the "Message" field while keeping other fields intact.
             {
                 key: redact(row[key], "▒") if key == "Message" else row[key]
                 for key in row.keys()
@@ -179,6 +189,7 @@ def main() -> None:
     host: str = WEB_SERVER_CFG.get("bind_ip", "127.0.0.1")
     port: int = WEB_SERVER_CFG.get("bind_port", 5141)
     logger.info(f"Starting aiosyslogd-web interface on http://{host}:{port}")
+    # Install uvloop if available for better performance.
     if uvloop:
         uvloop.install()
     app.run(host=host, port=port, debug=DEBUG)

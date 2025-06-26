@@ -14,6 +14,7 @@ class SQLiteDriver(BaseDatabase):
     """
 
     def __init__(self, config: Dict[str, Any]):
+        """Initializes the SQLite driver with configuration settings."""
         self.db_path_template = config.get("database", "syslog.sqlite3")
         self.sql_dump = config.get("sql_dump", False)
         self.debug = config.get("debug", False)
@@ -118,7 +119,7 @@ class SQLiteDriver(BaseDatabase):
                 )
                 await self.db.commit()
 
-    # NEW: Private helper method to handle writing a homogenous (single-month) batch.
+    # Private helper method to handle writing a homogenous (single-month) batch.
     async def _write_sub_batch(self, sub_batch: List[Dict[str, Any]]):
         """Writes a sub-batch of logs that all belong to the same month."""
         try:
@@ -151,7 +152,7 @@ class SQLiteDriver(BaseDatabase):
             if self.db:
                 await self.db.rollback()
 
-    # UPDATED: The optimized write_batch method with a fast path.
+    # The optimized write_batch method with a fast path.
     async def write_batch(self, batch: List[Dict[str, Any]]) -> None:
         """
         Efficiently writes a batch of logs, using a fast path for most cases
