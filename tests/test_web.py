@@ -111,12 +111,10 @@ async def test_get_time_boundary_ids():
     # --- Arrange: Create an in-memory database with test data ---
     conn = await aiosqlite.connect(":memory:")
     conn.row_factory = aiosqlite.Row
-    await conn.execute(
-        """CREATE TABLE SystemEvents (
+    await conn.execute("""CREATE TABLE SystemEvents (
            ID INTEGER PRIMARY KEY,
            ReceivedAt TIMESTAMP
-        )"""
-    )
+        )""")
     test_data = [
         (1, "2025-06-20 10:00:00"),
         (2, "2025-06-20 10:30:00"),
@@ -244,6 +242,17 @@ def test_main_function_calls_app_run(
 # --- NEW TEST CLASS ---
 class TestLogQuery:
     """Tests for the LogQuery class."""
+
+    @pytest.fixture
+    def mock_logger(self):
+        """
+        Provides a mocked logger instance by patching the source module.
+        This ensures the mock is used when LogQuery initializes its own logger.
+        """
+        with patch("aiosyslogd.db.sqlite_utils._logger") as mock_loguru_logger:
+            # Configure the mock for .opt().error() calls
+            mock_loguru_logger.opt.return_value = mock_loguru_logger
+            yield mock_loguru_logger
 
     def test_log_query_initialization(self):
         """
@@ -576,6 +585,79 @@ class TestLogQuery:
         final_start_id = call_args[5]  # effective_start_id is the 6th argument
 
         assert final_start_id == expected_start_id_in_query
+
+    @pytest.mark.asyncio
+    async def test_log_query_run_short_circuits_on_empty_time_range(
+        self, mock_logger
+    ):
+        """
+        Tests that LogQuery.run() correctly short-circuits and returns
+        zero results if a time filter is active but finds no matching ID range.
+        """
+        # --- Arrange ---
+        ctx = sqlite_utils.QueryContext(
+            db_path="test.db",
+            search_query="",
+            filters={
+                "received_at_min": "2099-01-01T00:00"
+            },  # A time with no logs
+            last_id=None,
+            direction="next",
+            page_size=50,
+        )
+
+        # Mock the connection and its execute method
+        mock_conn = AsyncMock()
+        mock_conn.execute = MagicMock()  # Should not be called
+
+        # Mock the async context manager that `aiosqlite.connect` returns
+        mock_connect_cm = AsyncMock()
+        mock_connect_cm.__aenter__.return_value = mock_conn
+
+        # Patch aiosqlite.connect and the boundary function
+        with patch(
+            "aiosqlite.connect", return_value=mock_connect_cm
+        ) as mock_connect_func:
+            with patch(
+                "aiosyslogd.db.sqlite_utils.get_time_boundary_ids",
+                return_value=(
+                    None,
+                    None,
+                    ["Debug info for boundaries"],
+                ),  # Simulate no IDs found
+            ) as mock_get_bounds:
+                # Patch the methods that should NOT be called if logic is correct
+                with patch(
+                    "aiosyslogd.db.sqlite_utils.LogQuery._get_total_log_count",
+                    new_callable=AsyncMock,
+                ) as mock_get_count:
+                    with patch(
+                        "aiosyslogd.db.sqlite_utils.LogQuery._fetch_log_page",
+                        new_callable=AsyncMock,
+                    ) as mock_fetch_page:
+
+                        # --- Act ---
+                        log_query = sqlite_utils.LogQuery(ctx)
+                        results = await log_query.run()
+
+        # --- Assert ---
+        # The main logic should run up to determining the boundaries
+        mock_connect_func.assert_called_once()
+        mock_get_bounds.assert_called_once()
+
+        # These methods should NOT have been called due to the short-circuit
+        mock_get_count.assert_not_called()
+        mock_fetch_page.assert_not_called()
+
+        # The result should be empty
+        assert results["logs"] == []
+        assert results["total_logs"] == 0
+        assert results["error"] is None
+
+        # Check for the debug message
+        mock_logger.debug.assert_called_with(
+            "Time filter yielded no results. Short-circuiting query."
+        )
 
     # fmt: off
     @pytest.mark.parametrize(

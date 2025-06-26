@@ -317,6 +317,23 @@ class LogQuery:
                 self.conn.row_factory = aiosqlite.Row
 
                 await self._determine_query_boundaries()
+
+                # If a time filter was applied but resulted in no valid ID range,
+                # it means there are no logs in that period. We can stop early.
+                time_filter_was_active = bool(
+                    self.ctx.filters.get("received_at_min")
+                    or self.ctx.filters.get("received_at_max")
+                )
+                if (
+                    time_filter_was_active
+                    and self.start_id is None
+                    and self.end_id is None
+                ):
+                    self.logger.debug(
+                        "Time filter yielded no results. Short-circuiting query."
+                    )
+                    return self.results
+
                 await self._get_total_log_count()
                 await self._fetch_log_page()
                 self._prepare_pagination()

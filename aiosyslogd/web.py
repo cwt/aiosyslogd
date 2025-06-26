@@ -5,7 +5,7 @@
 from .config import load_config
 from .db.logs_utils import redact
 from .db.sqlite_utils import get_available_databases, QueryContext, LogQuery
-from datetime import datetime
+from datetime import datetime, timedelta
 from loguru import logger
 from quart import Quart, render_template, request, abort, Response
 from types import ModuleType
@@ -94,6 +94,24 @@ async def index() -> str | Response:
         "query_time": 0.0,
     }
 
+    # Check if the page is loaded with no specific filters
+    is_unfiltered_load = (
+        not context["search_query"]
+        and not context["filters"]["from_host"]
+        and not context["filters"]["received_at_min"]
+        and not context["filters"]["received_at_max"]
+    )
+
+    # If it's an unfiltered load, set the default time to the last hour
+    if is_unfiltered_load:
+        now = datetime.now()
+        one_hour_ago = now - timedelta(hours=1)
+        # The HTML input type="datetime-local" expects 'YYYY-MM-DDTHH:MM'
+        context["filters"]["received_at_min"] = one_hour_ago.strftime(
+            "%Y-%m-%dT%H:%M"
+        )
+        context["filters"]["received_at_max"] = now.strftime("%Y-%m-%dT%H:%M")
+
     if not context["available_dbs"]:
         context["error"] = (
             "No SQLite database files found. "
@@ -125,7 +143,7 @@ async def index() -> str | Response:
     if REDACT and db_results["logs"]:
         redacted_logs = (
             {
-                key: (redact(row[key], "▒") if key == "Message" else row[key])
+                key: redact(row[key], "▒") if key == "Message" else row[key]
                 for key in row.keys()
             }
             for row in db_results["logs"]
