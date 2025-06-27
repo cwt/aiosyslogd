@@ -19,6 +19,8 @@ It features an optional integration with uvloop for a significant performance bo
 * **Full-Text Search:** Automatically maintains an FTS5 virtual table (SystemEvents_FTS) for SQLite or fully indexed Meilisearch backend for powerful and fast message searching.
 * **RFC5424 Conversion:** Includes a utility to convert older *RFC3164* formatted messages to the modern *RFC5424* format.
 * **Flexible Configuration:** Configure the server via a simple aiosyslogd.toml file.
+* **Web UI:** A simple web interface for monitoring and searching logs, accessible via a web browser.
+* **Container Support:** Pre-built Docker/Podman images for easy deployment.
 
 ## **Running with Containers (Docker / Podman)**
 
@@ -109,6 +111,7 @@ The server is configured using a TOML file. By default, it looks for aiosyslogd.
 #### **Default aiosyslogd.toml**
 
 If a configuration file is not found, this default version will be created:
+
 ```toml
 [server]
 bind_ip = "0.0.0.0"
@@ -135,6 +138,7 @@ database = "syslog.sqlite3"
 url = "http://127.0.0.1:7700"
 api_key = ""
 ```
+
 #### **Custom Configuration Path**
 
 You can specify a custom path for the configuration file by setting the `AIOSYSLOGD_CONFIG` environment variable.
