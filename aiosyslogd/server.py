@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-## Syslog Server in Python with asyncio and pluggable DB drivers.
+# Syslog Server in Python with asyncio and pluggable DB drivers.
 
 from . import config
 from .db import BaseDatabase
