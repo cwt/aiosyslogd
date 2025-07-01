@@ -1,351 +1,393 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>aiosyslogd Log Viewer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        .search-bar {
-            box-shadow: 0 1px 6px rgba(32, 33, 36, 0.28);
-            border-radius: 24px;
-        }
-        .search-bar:hover {
-            box-shadow: 0 2px 8px rgba(32, 33, 36, 0.35);
-        }
-        /* Styles for highlighted text */
-        .highlight-span {
-            padding: 1px 4px;
-            border-radius: 4px;
-            font-weight: 500;
-        }
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+
+      .search-bar {
+        box-shadow: 0 1px 6px rgba(32, 33, 36, 0.28);
+        border-radius: 24px;
+      }
+
+      .search-bar:hover {
+        box-shadow: 0 2px 8px rgba(32, 33, 36, 0.35);
+      }
+
+      /* Styles for highlighted text */
+      .highlight-span {
+        padding: 1px 4px;
+        border-radius: 4px;
+        font-weight: 500;
+      }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
-</head>
-<body class="bg-gray-100 text-gray-800">
-
-<div class="container mx-auto p-4 md:p-8">
-    <header class="text-center mb-8">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+          rel="stylesheet">
+  </head>
+  <body class="bg-gray-100 text-gray-800">
+    <div class="container mx-auto p-4 md:p-8">
+      <header class="text-center mb-8">
         <h1 class="text-4xl font-bold text-gray-700">aiosyslogd Log Viewer</h1>
         <p class="text-gray-500">SQLite Log Search Interface</p>
-    </header>
-
-    <!-- Search and Filter Form -->
-    <form action="{{ url_for('index') }}" method="get" class="bg-white p-6 rounded-lg shadow-md mb-8">
+      </header>
+      <!-- Search and Filter Form -->
+      <form action="{{ url_for("index") }}"
+            method="get"
+            class="bg-white p-6 rounded-lg shadow-md mb-8">
         <!-- Database Selector -->
         <div class="mb-4">
-            <label for="db_file" class="block text-sm font-medium text-gray-700 mb-1">Database File</label>
-            <select name="db_file" id="db_file" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" onchange="this.form.submit()">
-                {% for db in available_dbs %}
-                    <option value="{{ db }}" {% if db == selected_db %}selected{% endif %}>{{ db }}</option>
-                {% endfor %}
-            </select>
+          <label for="db_file" class="block text-sm font-medium text-gray-700 mb-1">Database File</label>
+          <select name="db_file"
+                  id="db_file"
+                  class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  onchange="this.form.submit()">
+            {% for db in available_dbs %}
+              <option value="{{ db }}" {% if db == selected_db %}selected{% endif %}>{{ db }}</option>
+            {% endfor %}
+          </select>
         </div>
-
         <!-- Main Search Bar -->
         <div class="flex items-center space-x-2 mb-4">
-            <div class="relative w-full">
-                <input type="text" name="q" value="{{ search_query }}" placeholder="Enter FTS5 query for Message (e.g., 'error* OR failure')" class="w-full py-3 pl-4 pr-12 text-lg border-gray-300 search-bar focus:ring-indigo-500 focus:border-indigo-500">
-                <div class="absolute inset-y-0 right-0 flex py-1.5 pr-1.5">
-                    <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            <a href="{{ url_for('index', db_file=selected_db) }}" class="flex-shrink-0 inline-flex items-center justify-center h-[52px] w-[52px] border border-gray-300 rounded-full text-gray-500 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" title="Reset Search and Filters">
-                <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          <div class="relative w-full">
+            <input type="text"
+                   name="q"
+                   value="{{ search_query }}"
+                   placeholder="Enter FTS5 query for Message (e.g., 'error* OR failure')"
+                   class="w-full py-3 pl-4 pr-12 text-lg border-gray-300 search-bar focus:ring-indigo-500 focus:border-indigo-500">
+            <div class="absolute inset-y-0 right-0 flex py-1.5 pr-1.5">
+              <button type="submit"
+                      class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <svg class="h-5 w-5"
+                     xmlns="http://www.w3.org/2000/svg"
+                     fill="none"
+                     viewBox="0 0 24 24"
+                     stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-            </a>
+              </button>
+            </div>
+          </div>
+          <a href="{{ url_for('index', db_file=selected_db) }}"
+             class="flex-shrink-0 inline-flex items-center justify-center h-[52px] w-[52px] border border-gray-300 rounded-full text-gray-500 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+             title="Reset Search and Filters">
+            <svg class="h-6 w-6"
+                 xmlns="http://www.w3.org/2000/svg"
+                 fill="none"
+                 viewBox="0 0 24 24"
+                 stroke="currentColor"
+                 stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </a>
         </div>
-
         <!-- Advanced Filters -->
         <div class="flex justify-between items-center mb-2">
-             <h3 class="text-lg font-medium text-gray-800">Advanced Filters</h3>
-             <!-- MODIFIED: Changed from a link to a button -->
-             <button type="button" id="toggle-sql-btn" class="text-sm text-indigo-600 hover:text-indigo-800">Show Executed SQL</button>
+          <h3 class="text-lg font-medium text-gray-800">Advanced Filters</h3>
+          <!-- MODIFIED: Changed from a link to a button -->
+          <button type="button"
+                  id="toggle-sql-btn"
+                  class="text-sm text-indigo-600 hover:text-indigo-800">Show Executed SQL</button>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-t pt-4">
-            <input type="hidden" name="last_id" value=""> <!-- Clear last_id when filters change -->
-            <div>
-                <label for="from_host" class="block text-sm font-medium text-gray-700">FromHost</label>
-                <input type="text" name="from_host" id="from_host" value="{{ filters.from_host or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-            </div>
-            <div>
-                <label for="received_at_min" class="block text-sm font-medium text-gray-700">Received At (Start)</label>
-                <input type="datetime-local" name="received_at_min" id="received_at_min" value="{{ filters.received_at_min or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-            </div>
-            <div>
-                <label for="received_at_max" class="block text-sm font-medium text-gray-700">Received At (End)</label>
-                <input type="datetime-local" name="received_at_max" id="received_at_max" value="{{ filters.received_at_max or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-            </div>
+          <input type="hidden" name="last_id" value="">
+          <!-- Clear last_id when filters change -->
+          <div>
+            <label for="from_host" class="block text-sm font-medium text-gray-700">FromHost</label>
+            <input type="text"
+                   name="from_host"
+                   id="from_host"
+                   value="{{ filters.from_host or '' }}"
+                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+          </div>
+          <div>
+            <label for="received_at_min" class="block text-sm font-medium text-gray-700">Received At (Start)</label>
+            <input type="datetime-local"
+                   name="received_at_min"
+                   id="received_at_min"
+                   value="{{ filters.received_at_min or '' }}"
+                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+          </div>
+          <div>
+            <label for="received_at_max" class="block text-sm font-medium text-gray-700">Received At (End)</label>
+            <input type="datetime-local"
+                   name="received_at_max"
+                   id="received_at_max"
+                   value="{{ filters.received_at_max or '' }}"
+                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+          </div>
         </div>
-
         <!-- Debug SQL Query -->
         <!-- MODIFIED: The box is now always rendered but hidden by default -->
         {% if debug_query %}
-        <div id="sql-query-box" class="bg-gray-800 text-white p-4 rounded-lg shadow-inner mt-4 hidden">
+          <div id="sql-query-box"
+               class="bg-gray-800 text-white p-4 rounded-lg shadow-inner mt-4 hidden">
             <h3 class="font-bold mb-2 text-gray-400 uppercase tracking-wider text-xs">Executed SQL Query</h3>
             <pre class="font-mono text-sm whitespace-pre-wrap"><code>{{ debug_query }}</code></pre>
-        </div>
+          </div>
         {% endif %}
-    </form>
-
-    <!-- Key Highlighter UI -->
-    <div class="bg-white p-4 rounded-lg shadow-md mb-8">
+      </form>
+      <!-- Key Highlighter UI -->
+      <div class="bg-white p-4 rounded-lg shadow-md mb-8">
         <h3 class="text-lg font-medium text-gray-800 mb-2">Dynamic Highlighter</h3>
         <div class="flex items-center space-x-2">
-            <input type="text" id="key-extractor-input" placeholder="Enter key to highlight" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-            <button type="button" id="add-highlight-btn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">Highlight Key</button>
-            <button type="button" id="remove-highlights-btn" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">Remove All</button>
+          <input type="text"
+                 id="key-extractor-input"
+                 placeholder="Enter key to highlight"
+                 class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+          <button type="button"
+                  id="add-highlight-btn"
+                  class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
+            Highlight Key
+          </button>
+          <button type="button"
+                  id="remove-highlights-btn"
+                  class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+            Remove All
+          </button>
         </div>
         <div class="mt-2 text-sm text-gray-600">
-            <strong>Highlighted Keys:</strong> <span id="highlighted-keys-list">None</span>
+          <strong>Highlighted Keys:</strong> <span id="highlighted-keys-list">None</span>
         </div>
-    </div>
-
-
-    <!-- Results Count -->
-    {% if total_logs is not none %}
-    <div class="mb-4 text-gray-600">
-        Found <span class="font-bold">{{ "{:,}".format(total_logs) }}</span> matching logs
-        {% if query_time is not none %}
-         in <span class="font-bold">{{ "%.3f"|format(query_time) }}s</span>.
-        {% endif %}
-    </div>
-    {% endif %}
-
-    <!-- Results -->
-    {% if error %}
-        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
-            <strong class="font-bold">Query Error:</strong>
-            <span class="block sm:inline">{{ error }}</span>
+      </div>
+      <!-- Results Count -->
+      {% if total_logs is not none %}
+        <div class="mb-4 text-gray-600">
+          Found <span class="font-bold">{{ "{:,}".format(total_logs) }}</span> matching logs
+          {% if query_time is not none %}
+            in <span class="font-bold">{{ "%.3f"|format(query_time) }}s</span>.
+          {% endif %}
         </div>
-    {% elif logs %}
-        <div id="log-table" class="bg-white shadow-md rounded-lg overflow-hidden font-mono">
-
-            <div class="log-table-header hidden md:grid md:grid-cols-[6rem_2fr_2fr_7fr] md:gap-x-4 bg-gray-50 font-medium text-xs text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                <div class="px-4 py-2 text-right">ID</div>
-                <div class="px-4 py-2">Received At</div>
-                <div class="px-4 py-2">From Host</div>
-                <div class="px-4 py-2">Message</div>
-            </div>
-
-            <div class="divide-y divide-gray-200">
-                {% for log in logs %}
-                <div class="log-row md:grid md:grid-cols-[6rem_2fr_2fr_7fr] md:gap-x-4 md:items-center">
-
-                    <div class="md:hidden space-y-1 p-3">
-                        <div>
-                            <span class="font-bold text-gray-600">ID:</span>
-                            <span class="text-gray-800">{{ log.ID }}</span>
-                        </div>
-                        <div>
-                            <span class="font-bold text-gray-600">Received At:</span>
-                            <span class="text-gray-800">{{ log.ReceivedAt.strftime('%Y-%m-%d %H:%M:%S') }}</span>
-                        </div>
-                        <div>
-                            <span class="font-bold text-gray-600">From Host:</span>
-                            <span class="text-gray-800">{{ log.FromHost }}</span>
-                        </div>
-                        <div>
-                            <span class="font-bold text-gray-600">Message:</span>
-                            <p class="text-gray-900 break-all log-message-cell">{{ log.Message }}</p>
-                        </div>
-                    </div>
-
-                    <div class="hidden md:contents">
-                        <div class="px-4 py-2 whitespace-nowrap text-sm text-gray-500 text-right">{{ log.ID }}</div>
-                        <div class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">{{ log.ReceivedAt.strftime('%Y-%m-%d %H:%M:%S') }}</div>
-                        <div class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">{{ log.FromHost }}</div>
-                        <div class="px-4 py-2 text-sm text-gray-900 break-all log-message-cell">{{ log.Message }}</div>
-                    </div>
+      {% endif %}
+      <!-- Results -->
+      {% if error %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative"
+             role="alert">
+          <strong class="font-bold">Query Error:</strong>
+          <span class="block sm:inline">{{ error }}</span>
+        </div>
+      {% elif logs %}
+        <div id="log-table"
+             class="bg-white shadow-md rounded-lg overflow-hidden font-mono">
+          <div class="log-table-header hidden md:grid md:grid-cols-[6rem_2fr_2fr_7fr] md:gap-x-4 bg-gray-50 font-medium text-xs text-gray-500 uppercase tracking-wider border-b border-gray-200">
+            <div class="px-4 py-2 text-right">ID</div>
+            <div class="px-4 py-2">Received At</div>
+            <div class="px-4 py-2">From Host</div>
+            <div class="px-4 py-2">Message</div>
+          </div>
+          <div class="divide-y divide-gray-200">
+            {% for log in logs %}
+              <div class="log-row md:grid md:grid-cols-[6rem_2fr_2fr_7fr] md:gap-x-4 md:items-center">
+                <div class="md:hidden space-y-1 p-3">
+                  <div>
+                    <span class="font-bold text-gray-600">ID:</span>
+                    <span class="text-gray-800">{{ log.ID }}</span>
+                  </div>
+                  <div>
+                    <span class="font-bold text-gray-600">Received At:</span>
+                    <span class="text-gray-800">{{ log.ReceivedAt.strftime("%Y-%m-%d %H:%M:%S") }}</span>
+                  </div>
+                  <div>
+                    <span class="font-bold text-gray-600">From Host:</span>
+                    <span class="text-gray-800">{{ log.FromHost }}</span>
+                  </div>
+                  <div>
+                    <span class="font-bold text-gray-600">Message:</span>
+                    <p class="text-gray-900 break-all log-message-cell">{{ log.Message }}</p>
+                  </div>
                 </div>
-                {% endfor %}
-            </div>
+                <div class="hidden md:contents">
+                  <div class="px-4 py-2 whitespace-nowrap text-sm text-gray-500 text-right">{{ log.ID }}</div>
+                  <div class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">{{ log.ReceivedAt.strftime("%Y-%m-%d %H:%M:%S") }}</div>
+                  <div class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">{{ log.FromHost }}</div>
+                  <div class="px-4 py-2 text-sm text-gray-900 break-all log-message-cell">{{ log.Message }}</div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
         </div>
-    {% else %}
+      {% else %}
         <div class="text-center py-12 bg-white rounded-lg shadow-md">
-            <p class="text-gray-500">No logs found. Try adjusting your search.</p>
+          <p class="text-gray-500">No logs found. Try adjusting your search.</p>
         </div>
-    {% endif %}
-
-    <!-- Pagination -->
-    <div class="flex justify-between items-center mt-6">
+      {% endif %}
+      <!-- Pagination -->
+      <div class="flex justify-between items-center mt-6">
         <div>
-           {% if page_info.has_prev_page %}
-             {% set prev_args = request.args.to_dict() %}
-             {% do prev_args.update({'last_id': page_info.prev_last_id, 'direction': 'prev'}) %}
-             <a href="{{ url_for('index', **prev_args) }}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                Previous
+          {% if page_info.has_prev_page %}
+            {% set prev_args = request.args.to_dict() %}
+            {% do prev_args.update({'last_id': page_info.prev_last_id, 'direction': 'prev'}) %}
+            <a href="{{ url_for('index', **prev_args) }}"
+               class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+              Previous
             </a>
-            {% endif %}
+          {% endif %}
         </div>
         <div>
-            {% if page_info.has_next_page %}
-             {% set next_args = request.args.to_dict() %}
-             {% do next_args.update({'last_id': page_info.next_last_id, 'direction': 'next'}) %}
-             <a href="{{ url_for('index', **next_args) }}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                Next
+          {% if page_info.has_next_page %}
+            {% set next_args = request.args.to_dict() %}
+            {% do next_args.update({'last_id': page_info.next_last_id, 'direction': 'next'}) %}
+            <a href="{{ url_for('index', **next_args) }}"
+               class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+              Next
             </a>
-            {% endif %}
+          {% endif %}
         </div>
+      </div>
     </div>
-</div>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        // --- STATE ---
+        let originalCasingKeys = []; // Stores original keys for display and URL
+        const keyInput = document.getElementById('key-extractor-input');
+        const addHighlightButton = document.getElementById('add-highlight-btn');
+        const removeHighlightsButton = document.getElementById('remove-highlights-btn');
+        const highlightedKeysList = document.getElementById('highlighted-keys-list');
+        const toggleSqlButton = document.getElementById('toggle-sql-btn');
+        const sqlQueryBox = document.getElementById('sql-query-box');
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // --- STATE ---
-    let originalCasingKeys = []; // Stores original keys for display and URL
-    const keyInput = document.getElementById('key-extractor-input');
-    const addHighlightButton = document.getElementById('add-highlight-btn');
-    const removeHighlightsButton = document.getElementById('remove-highlights-btn');
-    const highlightedKeysList = document.getElementById('highlighted-keys-list');
-    const toggleSqlButton = document.getElementById('toggle-sql-btn');
-    const sqlQueryBox = document.getElementById('sql-query-box');
+        const highlightColors = [
+          'bg-green-100 text-green-800',
+          'bg-yellow-100 text-yellow-800',
+          'bg-blue-100 text-blue-800',
+          'bg-purple-100 text-purple-800',
+          'bg-pink-100 text-pink-800',
+          'bg-indigo-100 text-indigo-800'
+        ];
+        let keyColorMap = {};
 
-    const highlightColors = [
-        'bg-green-100 text-green-800',
-        'bg-yellow-100 text-yellow-800',
-        'bg-blue-100 text-blue-800',
-        'bg-purple-100 text-purple-800',
-        'bg-pink-100 text-pink-800',
-        'bg-indigo-100 text-indigo-800'
-    ];
-    let keyColorMap = {};
-
-    // --- MAIN FUNCTIONS ---
-    function applyAllHighlights() {
-        const messageCells = document.querySelectorAll('.log-message-cell');
-        messageCells.forEach(cell => {
+        // --- MAIN FUNCTIONS ---
+        function applyAllHighlights() {
+          const messageCells = document.querySelectorAll('.log-message-cell');
+          messageCells.forEach(cell => {
             if (cell.dataset.originalText) {
-                cell.innerHTML = cell.dataset.originalText;
+              cell.innerHTML = cell.dataset.originalText;
             } else {
-                cell.dataset.originalText = cell.innerHTML;
+              cell.dataset.originalText = cell.innerHTML;
             }
 
             let newHtml = cell.innerHTML;
             originalCasingKeys.forEach(key => {
-                const sanitizedKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
-                const lowerCaseKey = sanitizedKey.toLowerCase();
-                const colorClass = keyColorMap[lowerCaseKey];
+              const sanitizedKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
+              const lowerCaseKey = sanitizedKey.toLowerCase();
+              const colorClass = keyColorMap[lowerCaseKey];
 
-                const regex = new RegExp(`(${sanitizedKey}(?:\\s*=\\s*|\\s+)(?:'[^']+'|"[^"]+"|[\\S]+))`, 'gi');
+              const regex = new RegExp(`(${sanitizedKey}(?:\\s*=\\s*|\\s+)(?:'[^']+'|"[^"]+"|[\\S]+))`, 'gi');
 
-                newHtml = newHtml.replace(regex, (match) => {
-                    if (match.startsWith('<span')) return match;
-                    return `<span class="highlight-span ${colorClass}">${match}</span>`;
-                });
+              newHtml = newHtml.replace(regex, (match) => {
+                if (match.startsWith('<span')) return match;
+                return `<span class="highlight-span ${colorClass}">${match}</span>`;
+              });
             });
             cell.innerHTML = newHtml;
-        });
-    }
+          });
+        }
 
-    function addHighlightKey(key) {
-        const sanitizedKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
-        const lowerCaseKey = sanitizedKey.toLowerCase();
+        function addHighlightKey(key) {
+          const sanitizedKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
+          const lowerCaseKey = sanitizedKey.toLowerCase();
 
-        const alreadyExists = originalCasingKeys.some(k => k.toLowerCase() === lowerCaseKey);
-        if (!sanitizedKey || alreadyExists) {
+          const alreadyExists = originalCasingKeys.some(k => k.toLowerCase() === lowerCaseKey);
+          if (!sanitizedKey || alreadyExists) {
             console.warn(`Key "${sanitizedKey}" is empty or already highlighted.`);
             return;
+          }
+
+          originalCasingKeys.push(sanitizedKey);
+          keyColorMap[lowerCaseKey] = highlightColors[originalCasingKeys.length - 1 % highlightColors.length];
+
+          updatePaginationLinks();
+          updateKeyListUI();
+          applyAllHighlights();
         }
 
-        originalCasingKeys.push(sanitizedKey);
-        keyColorMap[lowerCaseKey] = highlightColors[originalCasingKeys.length - 1 % highlightColors.length];
+        function resetHighlights() {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('extract');
+          window.location.href = url.toString();
+        }
 
-        updatePaginationLinks();
-        updateKeyListUI();
-        applyAllHighlights();
-    }
-
-    function resetHighlights() {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('extract');
-        window.location.href = url.toString();
-    }
-
-    function updateKeyListUI() {
-        if (originalCasingKeys.length > 0) {
+        function updateKeyListUI() {
+          if (originalCasingKeys.length > 0) {
             highlightedKeysList.innerHTML = '';
             originalCasingKeys.forEach(key => {
-                const lowerCaseKey = key.toLowerCase();
-                const colorClass = keyColorMap[lowerCaseKey];
-                const span = document.createElement('span');
-                span.className = `highlight-span mr-2 ${colorClass}`;
-                span.textContent = key;
-                highlightedKeysList.appendChild(span);
+              const lowerCaseKey = key.toLowerCase();
+              const colorClass = keyColorMap[lowerCaseKey];
+              const span = document.createElement('span');
+              span.className = `highlight-span mr-2 ${colorClass}`;
+              span.textContent = key;
+              highlightedKeysList.appendChild(span);
             });
             removeHighlightsButton.style.display = 'inline-flex';
-        } else {
+          } else {
             highlightedKeysList.textContent = 'None';
             removeHighlightsButton.style.display = 'none';
+          }
         }
-    }
 
-    function updatePaginationLinks() {
-        const paginationLinks = document.querySelectorAll('div.flex.justify-between a');
+        function updatePaginationLinks() {
+          const paginationLinks = document.querySelectorAll('div.flex.justify-between a');
 
-        paginationLinks.forEach(link => {
+          paginationLinks.forEach(link => {
             let href = new URL(link.href, window.location.origin);
             href.searchParams.delete('extract');
             if (originalCasingKeys.length > 0) {
-                 href.searchParams.set('extract', originalCasingKeys.join(','));
+              href.searchParams.set('extract', originalCasingKeys.join(','));
             }
             link.href = href.toString();
-        });
-    }
+          });
+        }
 
-    // --- EVENT LISTENERS ---
-    addHighlightButton.addEventListener('click', () => {
-        const newKey = keyInput.value.trim();
-        if (newKey) {
+        // --- EVENT LISTENERS ---
+        addHighlightButton.addEventListener('click', () => {
+          const newKey = keyInput.value.trim();
+          if (newKey) {
             addHighlightKey(newKey);
             keyInput.value = '';
-        }
-    });
+          }
+        });
 
-    removeHighlightsButton.addEventListener('click', resetHighlights);
+        removeHighlightsButton.addEventListener('click', resetHighlights);
 
-    keyInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
+        keyInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
             e.preventDefault();
             addHighlightButton.click();
-        }
-    });
-
-    if (toggleSqlButton) {
-        toggleSqlButton.addEventListener('click', () => {
-            if (sqlQueryBox) {
-                const isHidden = sqlQueryBox.classList.toggle('hidden');
-                toggleSqlButton.textContent = isHidden ? 'Show Executed SQL' : 'Hide Executed SQL';
-            }
+          }
         });
-    }
 
-    // --- ON PAGE LOAD ---
-    function initialize() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const keysToExtract = urlParams.get('extract');
-        if (keysToExtract) {
+        if (toggleSqlButton) {
+          toggleSqlButton.addEventListener('click', () => {
+            if (sqlQueryBox) {
+              const isHidden = sqlQueryBox.classList.toggle('hidden');
+              toggleSqlButton.textContent = isHidden ? 'Show Executed SQL' : 'Hide Executed SQL';
+            }
+          });
+        }
+
+        // --- ON PAGE LOAD ---
+        function initialize() {
+          const urlParams = new URLSearchParams(window.location.search);
+          const keysToExtract = urlParams.get('extract');
+          if (keysToExtract) {
             const keys = keysToExtract.split(',');
             keys.forEach(key => {
-                 addHighlightKey(key.trim());
+              addHighlightKey(key.trim());
             });
-        } else {
+          } else {
             updateKeyListUI();
             updatePaginationLinks();
+          }
         }
-    }
 
-    initialize();
-});
-</script>
-
-</body>
+        initialize();
+      });
+    </script>
+  </body>
 </html>
