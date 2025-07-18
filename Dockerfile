@@ -1,5 +1,5 @@
 # Define build-time arguments for version management
-ARG ALMA_IMAGE=10-kitten-minimal
+ARG ALMA_IMAGE=9-minimal
 ARG POETRY_VERSION=2.1.3
 
 # Stage 1: Build Stage
