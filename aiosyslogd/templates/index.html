@@ -266,26 +266,58 @@
         function applyAllHighlights() {
           const messageCells = document.querySelectorAll('.log-message-cell');
           messageCells.forEach(cell => {
-            if (cell.dataset.originalText) {
-              cell.innerHTML = cell.dataset.originalText;
-            } else {
-              cell.dataset.originalText = cell.innerHTML;
+            // On first run, store the original text content, which is not HTML-escaped.
+            if (!cell.dataset.originalText) {
+              cell.dataset.originalText = cell.textContent;
+            }
+            const originalText = cell.dataset.originalText;
+
+            // Always clear the cell before re-applying highlights.
+            cell.innerHTML = '';
+
+            // If there are no keys to highlight, just set the text and finish.
+            if (originalCasingKeys.length === 0) {
+              cell.textContent = originalText;
+              return;
             }
 
-            let newHtml = cell.innerHTML;
-            originalCasingKeys.forEach(key => {
+            // Build a single regex to find all occurrences of all keys.
+            const allKeysRegexParts = originalCasingKeys.map(key => {
               const sanitizedKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
-              const lowerCaseKey = sanitizedKey.toLowerCase();
-              const colorClass = keyColorMap[lowerCaseKey];
-
-              const regex = new RegExp(`(${sanitizedKey}(?:\\s*=\\s*|\\s+)(?:'[^']+'|"[^"]+"|[\\S]+))`, 'gi');
-
-              newHtml = newHtml.replace(regex, (match) => {
-                if (match.startsWith('<span')) return match;
-                return `<span class="highlight-span ${colorClass}">${match}</span>`;
-              });
+              return `(${sanitizedKey}(?:\s*=\s*|\s+)(?:'[^']+'|"[^"]+"|[\S]+))`;
             });
-            cell.innerHTML = newHtml;
+            const combinedRegex = new RegExp(allKeysRegexParts.join('|'), 'gi');
+
+            let lastIndex = 0;
+            let match;
+
+            // Loop through all matches and build the new content using safe DOM methods.
+            while ((match = combinedRegex.exec(originalText)) !== null) {
+              // Append the text segment before the current match as a plain text node.
+              if (match.index > lastIndex) {
+                cell.appendChild(document.createTextNode(originalText.substring(lastIndex, match.index)));
+              }
+
+              const matchedValue = match[0];
+              // Determine which key was matched to apply the correct color.
+              const matchedKey = originalCasingKeys.find(k => matchedValue.toLowerCase().startsWith(k.toLowerCase()));
+              const lowerCaseKey = matchedKey ? matchedKey.toLowerCase() : '';
+              const colorClass = keyColorMap[lowerCaseKey] || highlightColors[0];
+
+              // Create the highlighted part in a SPAN element.
+              const span = document.createElement('span');
+              span.className = `highlight-span ${colorClass}`;
+              // Use textContent to insert the matched value, which prevents any HTML inside it from being rendered.
+              span.textContent = matchedValue;
+              cell.appendChild(span);
+
+              lastIndex = combinedRegex.lastIndex;
+            }
+
+            // Append any remaining text after the last match.
+            if (lastIndex < originalText.length) {
+              cell.appendChild(document.createTextNode(originalText.substring(lastIndex)));
+            }
           });
         }
 
