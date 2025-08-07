@@ -3,7 +3,10 @@ from . import BaseDatabase
 from collections import defaultdict
 from loguru import logger
 from meilisearch_python_sdk import AsyncClient
-from meilisearch_python_sdk.errors import MeilisearchApiError
+from meilisearch_python_sdk.errors import (
+    MeilisearchApiError,
+    MeilisearchCommunicationError,
+)
 from meilisearch_python_sdk.models.settings import (
     MeilisearchSettings,
     ProximityPrecision,
@@ -31,13 +34,21 @@ class MeilisearchDriver(BaseDatabase):
         try:
             health = await self.client.health()
             if health.status != "available":
-                raise ConnectionError("Meilisearch is not available.")
+                raise ConnectionError(
+                    f"Meilisearch is not available. Status: {health.status}"
+                )
             logger.info(
                 f"Meilisearch connection established at {self.config.get('url')}."
             )
+        except MeilisearchCommunicationError as e:
+            logger.opt(exception=True).error(
+                f"Failed to communicate with Meilisearch at {self.config.get('url')}"
+            )
+            logger.debug(str(e))
+            raise
         except Exception as e:
             logger.opt(exception=True).error(
-                f"Failed to connect to Meilisearch"
+                f"An unexpected error occurred when connecting to Meilisearch"
             )
             logger.debug(str(e))
             raise
@@ -133,12 +144,17 @@ class MeilisearchDriver(BaseDatabase):
 
             # Use client.wait_for_task for all collected UIDs.
             completed_tasks = await asyncio.gather(
-                *(self.client.wait_for_task(uid) for uid in tasks_to_wait)
+                *(self.client.wait_for_task(uid) for uid in tasks_to_wait),
+                return_exceptions=True,
             )
 
             # Step 3: Check if any tasks failed.
             for task_result in completed_tasks:
-                if task_result.status != "succeeded":
+                if isinstance(task_result, Exception):
+                    logger.error(
+                        f"Error waiting for Meilisearch task: {task_result}"
+                    )
+                elif task_result.status != "succeeded":
                     logger.error(
                         f"Meilisearch task {task_result.uid} failed: {task_result.error}"
                     )

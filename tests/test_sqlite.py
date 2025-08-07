@@ -4,27 +4,25 @@ import aiosqlite
 import os
 import pytest
 import sqlite3
-
+from unittest.mock import patch, AsyncMock
+from loguru import logger
+import sys
 
 # --- New Datetime Adapters to fix DeprecationWarning ---
 def adapt_datetime_iso(val):
     """Adapt datetime.datetime to timezone-aware ISO 8601 string."""
     return val.isoformat()
 
-
 def convert_timestamp(val):
     """Convert ISO 8601 string from DB back to datetime.datetime object."""
     return datetime.fromisoformat(val.decode())
-
 
 # Register the new adapters with the sqlite3 module
 sqlite3.register_adapter(datetime, adapt_datetime_iso)
 sqlite3.register_converter("timestamp", convert_timestamp)
 
 # --- Import the real SQLiteDriver from the application source code ---
-# This assumes your project is structured so pytest can find the aiosyslogd package.
 from aiosyslogd.db.sqlite import SQLiteDriver
-
 
 # --- Helper Function for Test Data ---
 def create_log_entry(message: str, timestamp: datetime) -> Dict[str, Any]:
@@ -41,13 +39,11 @@ def create_log_entry(message: str, timestamp: datetime) -> Dict[str, Any]:
         "ReceivedAt": timestamp,
     }
 
-
 # --- Pytest Fixtures ---
 @pytest.fixture
 def tmp_db_path(tmp_path):
     """Provides a temporary path for the database file."""
     return tmp_path / "test_syslog.sqlite3"
-
 
 @pytest.fixture
 def driver(tmp_db_path, event_loop):
@@ -57,9 +53,7 @@ def driver(tmp_db_path, event_loop):
     yield d
     event_loop.run_until_complete(d.close())
 
-
 # --- Test Cases ---
-
 
 @pytest.mark.asyncio
 async def test_write_batch_single_month_fast_path(driver, tmp_db_path):
@@ -90,7 +84,6 @@ async def test_write_batch_single_month_fast_path(driver, tmp_db_path):
     await conn.close()
 
     assert count[0] == 2, "Should have written exactly 2 logs"
-
 
 @pytest.mark.asyncio
 async def test_write_batch_across_month_boundary(driver, tmp_db_path):
@@ -154,7 +147,6 @@ async def test_write_batch_across_month_boundary(driver, tmp_db_path):
         "log_june_3",
     ], "Incorrect logs found in June database"
 
-
 @pytest.mark.asyncio
 async def test_fts_search_functionality(driver, tmp_db_path):
     """
@@ -199,7 +191,6 @@ async def test_fts_search_functionality(driver, tmp_db_path):
         len(success_logs) == 2
     ), "Should find two logs with words starting with 'succ'"
 
-
 @pytest.mark.asyncio
 async def test_write_empty_batch(driver, tmp_db_path):
     """
@@ -218,3 +209,30 @@ async def test_write_empty_batch(driver, tmp_db_path):
     assert (
         len(files) == 0
     ), "No database files should be created for an empty batch"
+
+@pytest.mark.asyncio
+async def test_write_batch_sqlite_error(driver):
+    """Tests that an aiosqlite.Error during a batch write is correctly handled."""
+    # 1. ARRANGE
+    log_sink = []
+    def sink(message):
+        log_sink.append(message)
+
+    logger.remove()
+    handler_id = logger.add(sink)
+
+    log_time = datetime(2025, 9, 10, 14, 0, 0)
+    log_batch = [create_log_entry("Log entry 1", log_time)]
+
+    # 2. ACT & ASSERT
+    with patch.object(driver, "_switch_db_if_needed", new=AsyncMock()):
+        with patch.object(driver, "db", new_callable=AsyncMock) as mock_db:
+            mock_db.executemany.side_effect = aiosqlite.Error("Test Error")
+            await driver._write_sub_batch(log_batch)
+
+            # 3. ASSERT
+            assert any("Batch SQL write failed" in record for record in log_sink)
+
+    # Cleanup
+    logger.remove(handler_id)
+    logger.add(sys.stderr)

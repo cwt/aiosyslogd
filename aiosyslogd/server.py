@@ -167,7 +167,7 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         try:
             decoded_data: str = data.decode("utf-8")
         except UnicodeDecodeError:
-            logger.warning(f"Cannot decode message from {address}: {data!r}")
+            logger.warning(f"Cannot decode message from {address[0]}: {data!r}")
             return None
 
         processed_data: str = normalize_to_rfc5424(
@@ -241,14 +241,15 @@ async def run_server() -> None:
     )
     logger.info("Server is running. Press Ctrl+C to stop.")
 
+    stop_event = asyncio.Event()
+    if sys.platform != "win32":
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, stop_event.set)
+
     try:
-        if sys.platform == "win32":
-            await asyncio.Future()
-        else:
-            stop_event = asyncio.Event()
-            for sig in (signal.SIGINT, signal.SIGTERM):
-                loop.add_signal_handler(sig, stop_event.set)
-            await stop_event.wait()
+        await stop_event.wait()
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
     finally:
         logger.info("Shutdown signal received.")
         transport.close()

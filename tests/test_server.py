@@ -147,3 +147,11 @@ def test_get_db_driver_injection_attempt(capsys):
     captured = capsys.readouterr()
     assert "Invalid database driver" in captured.err
     assert f"'{malicious_driver_name}'" in captured.err
+
+@pytest.mark.asyncio
+async def test_process_datagram_invalid_encoding_logs_address(server, capsys):
+    test_data = b"\xff\xfe"
+    addr = ("192.168.1.1", 12345)
+    server.process_datagram(test_data, addr, datetime.now())
+    captured = capsys.readouterr()
+    assert "Cannot decode message from 192.168.1.1" in captured.err

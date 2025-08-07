@@ -70,8 +70,8 @@ class SQLiteDriver(BaseDatabase):
             raise ConnectionError("Database is not connected.")
         async with self.db.cursor() as cursor:
             await cursor.execute(
-                "SELECT name FROM sqlite_master "
-                f"WHERE type='table' AND name='{table_name}'"
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (table_name,),
             )
             if await cursor.fetchone() is None:
                 logger.debug(
@@ -79,41 +79,41 @@ class SQLiteDriver(BaseDatabase):
                     f"{table_name}, {fts_table_name}"
                 )
                 await self.db.execute(
-                    f"""CREATE TABLE {table_name} (
+                    f"""CREATE TABLE \"{table_name}\" (
                     ID INTEGER PRIMARY KEY AUTOINCREMENT, Facility INTEGER,
                     Priority INTEGER, FromHost TEXT, InfoUnitID INTEGER,
                     ReceivedAt TIMESTAMP, DeviceReportedTime TIMESTAMP,
                     SysLogTag TEXT, ProcessID TEXT, Message TEXT)"""
                 )
                 await self.db.execute(
-                    f"CREATE INDEX idx_{table_name}_ReceivedAt ON {table_name} (ReceivedAt)"
+                    f'CREATE INDEX "idx_{table_name}_ReceivedAt" ON "{table_name}" (ReceivedAt)'
                 )
                 await self.db.execute(
-                    f"CREATE INDEX idx_{table_name}_FromHost ON {table_name} (FromHost)"
+                    f'CREATE INDEX "idx_{table_name}_FromHost" ON "{table_name}" (FromHost)'
                 )
                 await self.db.execute(
-                    f"CREATE VIRTUAL TABLE {fts_table_name} "
-                    f"USING fts5(Message, content='{table_name}', content_rowid='ID')"
+                    f"""CREATE VIRTUAL TABLE "{fts_table_name}" 
+                    USING fts5(Message, content="{table_name}", content_rowid="ID")"""
                 )
                 await self.db.execute(
-                    f"""CREATE TRIGGER {table_name}_insert AFTER INSERT ON {table_name}
+                    f"""CREATE TRIGGER \"{table_name}_insert\" AFTER INSERT ON \"{table_name}\" 
                     BEGIN
-                        INSERT INTO {fts_table_name}(rowid, Message)
+                        INSERT INTO \"{fts_table_name}\"(rowid, Message)
                         VALUES (new.ID, new.Message);
                     END"""
                 )
                 await self.db.execute(
-                    f"""CREATE TRIGGER {table_name}_update AFTER UPDATE ON {table_name}
+                    f"""CREATE TRIGGER \"{table_name}_update\" AFTER UPDATE ON \"{table_name}\" 
                     BEGIN
-                        UPDATE {fts_table_name}
+                        UPDATE \"{fts_table_name}\" 
                         SET Message = new.Message
                         WHERE rowid = new.ID;
                     END"""
                 )
                 await self.db.execute(
-                    f"""CREATE TRIGGER {table_name}_delete AFTER DELETE ON {table_name}
+                    f"""CREATE TRIGGER \"{table_name}_delete\" AFTER DELETE ON \"{table_name}\" 
                     BEGIN
-                        DELETE FROM {fts_table_name}
+                        DELETE FROM \"{fts_table_name}\" 
                         WHERE rowid = old.ID;
                     END"""
                 )
@@ -130,7 +130,7 @@ class SQLiteDriver(BaseDatabase):
 
             table_name = "SystemEvents"
             sql_command = (
-                f"INSERT INTO {table_name} (Facility, Priority, FromHost, InfoUnitID, "
+                f'INSERT INTO "{table_name}" (Facility, Priority, FromHost, InfoUnitID, '
                 "ReceivedAt, DeviceReportedTime, SysLogTag, ProcessID, Message) "
                 "VALUES (:Facility, :Priority, :FromHost, :InfoUnitID, :ReceivedAt, "
                 ":DeviceReportedTime, :SysLogTag, :ProcessID, :Message)"
@@ -146,9 +146,14 @@ class SQLiteDriver(BaseDatabase):
             logger.debug(
                 f"Successfully wrote {len(sub_batch)} logs to '{self._current_db_path}'."
             )
+        except aiosqlite.Error as e:
+            logger.opt(exception=True).error(f"Batch SQL write failed: {e}")
+            if self.db:
+                await self.db.rollback()
         except Exception as e:
-            logger.opt(exception=True).error("Batch SQL write failed")
-            logger.debug(str(e))
+            logger.opt(exception=True).error(
+                f"An unexpected error occurred during batch write: {e}"
+            )
             if self.db:
                 await self.db.rollback()
 
