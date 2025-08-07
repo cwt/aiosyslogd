@@ -75,6 +75,22 @@ MAC_PATTERN = re.compile(
     r"\b(?:[0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}\b", re.IGNORECASE
 )
 
+# --- Performance Enhancement: Combined Pattern ---
+# Combine simple patterns (IPv4, MAC, IPv6 Loopback) into one for a single pass.
+# The main IPv6 pattern is kept separate because it has a dependency on the
+# IPv4 redaction for mapped addresses.
+COMBINED_SIMPLE_REDACTION_PATTERN = re.compile(
+    "|".join(
+        [
+            IPV4_PATTERN.pattern,
+            MAC_PATTERN.pattern,
+            IPV6_LOOPBACK_PATTERN.pattern,
+        ]
+    ),
+    re.IGNORECASE,
+)
+
+
 # Character used to replace sensitive data
 REDACTION_CHAR: str = "█"
 
@@ -107,14 +123,17 @@ def redact(message: str, fancy_redaction_char: str | None = None) -> str:
         """Replaces blocked patterns with redacted characters."""
         return REDACTION_CHAR * len(match.group(0))
 
-    # Apply redactions in order: IPv4, IPv6, MAC, usernames
-    # Redact IPv4 first to simplify IPv6 handling for IPv4-mapped addresses
-    redacted_message = IPV4_PATTERN.sub(simple_block_replacer, message)
-    redacted_message = IPV6_PATTERN.sub(simple_block_replacer, redacted_message)
-    redacted_message = IPV6_LOOPBACK_PATTERN.sub(
-        simple_block_replacer, redacted_message
+    # --- Optimized Redaction Order ---
+    # Pass 1: Redact simple, non-dependent patterns (IPv4, MAC, IPv6 Loopback).
+    redacted_message = COMBINED_SIMPLE_REDACTION_PATTERN.sub(
+        simple_block_replacer, message
     )
-    redacted_message = MAC_PATTERN.sub(simple_block_replacer, redacted_message)
+
+    # Pass 2: Redact the more complex IPv6 patterns, which may depend on the first pass
+    # (e.g., for IPv4-mapped addresses).
+    redacted_message = IPV6_PATTERN.sub(simple_block_replacer, redacted_message)
+
+    # Pass 3: Redact usernames, which has its own replacement logic.
     redacted_message = USER_PATTERN.sub(user_replacer, redacted_message)
 
     # Replace the redaction character if a fancy one is provided (e.g. "▒").

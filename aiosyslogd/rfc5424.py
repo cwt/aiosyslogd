@@ -35,6 +35,22 @@ RFC3164_PATTERN: re.Pattern[str] = re.compile(
 # Pattern to extract PID from the tag, if present.
 PID_PATTERN: re.Pattern[str] = re.compile(r"^(.*)\[(\d+)\]$")
 
+# --- Month Abbreviation to Number Mapping ---
+MONTH_MAP = {
+    "Jan": 1,
+    "Feb": 2,
+    "Mar": 3,
+    "Apr": 4,
+    "May": 5,
+    "Jun": 6,
+    "Jul": 7,
+    "Aug": 8,
+    "Sep": 9,
+    "Oct": 10,
+    "Nov": 11,
+    "Dec": 12,
+}
+
 
 def convert_rfc3164_to_rfc5424(message: str, debug_mode: bool = False) -> str:
     """
@@ -64,26 +80,21 @@ def convert_rfc3164_to_rfc5424(message: str, debug_mode: bool = False) -> str:
         procid = pid_match.group(2)
 
     try:
-        now: datetime = datetime.now()
-        # Add the current year to the string and the format.
-        # This to avoid Python 3.13+ DeprecationWarning.
-        date_string_with_year: str = (
-            f"{now.year} {parts['mon']} {parts['day']} "
-            f"{parts['hr']}:{parts['min']}:{parts['sec']}"
-        )
-        dt_naive: datetime = datetime.strptime(
-            date_string_with_year,
-            "%Y %b %d %H:%M:%S",
-        )
+        now = datetime.now()
+        month = MONTH_MAP.get(parts["mon"], now.month)
+        day = int(parts["day"])
+        hour = int(parts["hr"])
+        minute = int(parts["min"])
+        second = int(parts["sec"])
 
-        # If the parsed date is in the future, it must be from the previous year.
-        # This handles cases like a log from December being processed in January.
+        dt_naive = datetime(now.year, month, day, hour, minute, second)
+
         if dt_naive > now:
             dt_naive = dt_naive.replace(year=now.year - 1)
 
         dt_aware: datetime = dt_naive.astimezone().astimezone(UTC)
         timestamp: str = dt_aware.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-    except ValueError:
+    except (ValueError, KeyError):
         if debug_mode:
             logger.debug(
                 "Could not parse RFC-3164 timestamp, using current time."
