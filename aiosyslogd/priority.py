@@ -49,7 +49,7 @@ class SyslogMatrix:
         self.matrix: Dict[str, Tuple[str, str]] = {
             str(i): (facility, level)
             for i, (facility, level) in enumerate(
-                (f, l) for f in self.FACILITIES for l in self.LEVELS
+                (f, lvl) for f in self.FACILITIES for lvl in self.LEVELS
             )
         }
 
