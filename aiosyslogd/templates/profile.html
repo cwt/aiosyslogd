@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - aiosyslogd{% endblock %}
+
+{% block content %}
+    <h1>Profile</h1>
+    <form method="post">
+        <div class="mb-3">
+            <label for="password" class="form-label">New Password</label>
+            <input type="password" class="form-control" id="password" name="password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Update Password</button>
+    </form>
+{% endblock %}

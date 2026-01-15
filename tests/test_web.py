@@ -57,16 +57,24 @@ async def test_index_route_no_dbs(client):
     """
     Tests the index route when no database files are found.
     """
-    with patch(
-        "aiosyslogd.web.get_available_databases",
-        new_callable=AsyncMock,
-        return_value=[],
-    ) as mock_get_dbs:
-        response = await client.get("/")
-        assert response.status_code == 200
-        response_data = await response.get_data(as_text=True)
-        assert "No SQLite database files found" in response_data
-        mock_get_dbs.assert_called_once()
+    # Mock auth to bypass login requirement
+    mock_user = MagicMock()
+    mock_user.is_enabled = True
+
+    with patch("aiosyslogd.web.auth_manager.get_user", return_value=mock_user):
+        async with client.session_transaction() as sess:
+            sess["username"] = "testuser"
+
+        with patch(
+            "aiosyslogd.web.get_available_databases",
+            new_callable=AsyncMock,
+            return_value=[],
+        ) as mock_get_dbs:
+            response = await client.get("/")
+            assert response.status_code == 200
+            response_data = await response.get_data(as_text=True)
+            assert "No SQLite database files found" in response_data
+            mock_get_dbs.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -111,10 +119,12 @@ async def test_get_time_boundary_ids():
     # --- Arrange: Create an in-memory database with test data ---
     conn = await aiosqlite.connect(":memory:")
     conn.row_factory = aiosqlite.Row
-    await conn.execute("""CREATE TABLE SystemEvents (
+    await conn.execute(
+        """CREATE TABLE SystemEvents (
            ID INTEGER PRIMARY KEY,
            ReceivedAt TIMESTAMP
-        )""")
+        )"""
+    )
     test_data = [
         (1, "2025-06-20 10:00:00"),
         (2, "2025-06-20 10:30:00"),
@@ -229,7 +239,8 @@ def test_main_function_calls_app_run(
     expected_port = web.WEB_SERVER_CFG.get("bind_port", 5141)
 
     # --- Act ---
-    web.main()
+    with patch("sys.argv", ["web.py"]):
+        web.main()
 
     # --- Assert ---
     mock_check_backend.assert_called_once()
@@ -712,3 +723,199 @@ class TestLogQuery:
         if direction == "prev" and input_logs:
             assert log_query.results["logs"][0]["ID"] == input_logs[-1]["ID"]
     # fmt: on
+
+
+@pytest.mark.asyncio
+async def test_login_route(client):
+    # GET
+    response = await client.get("/login")
+    assert response.status_code == 200
+    assert "Login" in await response.get_data(as_text=True)
+
+    # POST Success
+    with patch("aiosyslogd.web.auth_manager") as mock_auth:
+        mock_auth.check_password.return_value = True
+        mock_auth.get_user.return_value.is_enabled = True
+
+        response = await client.post(
+            "/login", form={"username": "admin", "password": "password"}
+        )
+        assert response.status_code == 302
+        assert response.location.endswith("/")  # Redirect to index
+
+    # POST Failure
+    with patch("aiosyslogd.web.auth_manager") as mock_auth:
+        mock_auth.check_password.return_value = False
+
+        response = await client.post(
+            "/login", form={"username": "admin", "password": "wrong"}
+        )
+        assert response.status_code == 200
+        assert "Invalid username or password" in await response.get_data(
+            as_text=True
+        )
+
+
+@pytest.mark.asyncio
+async def test_logout_route(client):
+    async with client.session_transaction() as sess:
+        sess["username"] = "admin"
+
+    # Mock get_user to return a valid user so login_required passes
+    with patch("aiosyslogd.web.auth_manager.get_user") as mock_get_user:
+        mock_get_user.return_value = MagicMock(is_enabled=True)
+        response = await client.get("/logout")
+        assert response.status_code == 302
+        assert response.location.endswith("/login")
+
+    async with client.session_transaction() as sess:
+        assert "username" not in sess
+
+
+@pytest.mark.asyncio
+async def test_login_required_decorator(client):
+    # No session
+    response = await client.get("/")
+    assert response.status_code == 302
+    assert "login" in response.location
+
+    # Disabled user
+    async with client.session_transaction() as sess:
+        sess["username"] = "disabled_user"
+
+    with patch("aiosyslogd.web.auth_manager.get_user") as mock_get_user:
+        mock_user = MagicMock()
+        mock_user.is_enabled = False
+        mock_get_user.return_value = mock_user
+
+        response = await client.get("/")
+        assert response.status_code == 302
+        assert "login" in response.location
+
+    # Non-existent user
+    async with client.session_transaction() as sess:
+        sess["username"] = "ghost"
+
+    with patch("aiosyslogd.web.auth_manager.get_user") as mock_get_user:
+        mock_get_user.return_value = None
+
+        response = await client.get("/")
+        assert response.status_code == 302
+        assert "login" in response.location
+
+
+@pytest.mark.asyncio
+async def test_admin_required_decorator(client):
+    async with client.session_transaction() as sess:
+        sess["username"] = "user"
+
+    with patch("aiosyslogd.web.auth_manager.get_user") as mock_get_user:
+        mock_user = MagicMock()
+        mock_user.is_enabled = True
+        mock_user.is_admin = False
+        mock_get_user.return_value = mock_user
+
+        response = await client.get("/users")  # Admin only route
+        assert response.status_code == 302
+        assert response.location.endswith("/")  # Redirect to index
+
+
+@pytest.mark.asyncio
+async def test_user_management_routes(client):
+    async with client.session_transaction() as sess:
+        sess["username"] = "admin"
+
+    mock_user = MagicMock()
+    mock_user.is_enabled = True
+    mock_user.is_admin = True
+
+    with patch("aiosyslogd.web.auth_manager") as mock_auth:
+        mock_auth.get_user.return_value = mock_user
+        mock_auth.users.values.return_value = []
+
+        # List Users
+        response = await client.get("/users")
+        assert response.status_code == 200
+
+        # Add User GET
+        response = await client.get("/users/add")
+        assert response.status_code == 200
+
+        # Add User POST Success
+        mock_auth.add_user.return_value = (True, "Success")
+        response = await client.post(
+            "/users/add", form={"username": "new", "password": "pw"}
+        )
+        assert response.status_code == 302
+
+        # Add User POST Failure
+        mock_auth.add_user.return_value = (False, "Fail")
+        response = await client.post(
+            "/users/add", form={"username": "exists", "password": "pw"}
+        )
+        assert response.status_code == 200  # Renders form again with flash
+
+        # Edit User GET
+        response = await client.get("/users/edit/someuser")
+        assert response.status_code == 200
+
+        # Edit User GET Not Found
+        mock_auth.get_user.side_effect = lambda u: (
+            mock_user if u == "admin" else None
+        )
+        response = await client.get("/users/edit/ghost")
+        assert response.status_code == 404
+
+        # Reset side effect
+        mock_auth.get_user.side_effect = None
+        mock_auth.get_user.return_value = mock_user
+
+        # Edit User POST
+        response = await client.post(
+            "/users/edit/someuser",
+            form={"password": "new_pw", "is_admin": "on"},
+        )
+        assert response.status_code == 302
+        mock_auth.update_password.assert_called()
+        mock_auth.set_user_admin_status.assert_called()
+
+        # Delete User
+        mock_auth.delete_user.return_value = (True, "Deleted")
+        response = await client.post("/users/delete/someuser")
+        assert response.status_code == 302
+        mock_auth.delete_user.assert_called()
+
+        # Delete Self
+        response = await client.post("/users/delete/admin")
+        assert response.status_code == 302
+        # verify delete_user NOT called for 'admin'
+        # Note: We need to check call args or count.
+        # Since we called it before for 'someuser', we check strictly.
+        assert mock_auth.delete_user.call_args[0][0] != "admin"
+
+
+@pytest.mark.asyncio
+async def test_profile_route(client):
+    async with client.session_transaction() as sess:
+        sess["username"] = "user"
+
+    with patch("aiosyslogd.web.auth_manager") as mock_auth:
+        mock_user = MagicMock()
+        mock_user.is_enabled = True
+        mock_auth.get_user.return_value = mock_user
+
+        # GET
+        response = await client.get("/profile")
+        assert response.status_code == 200
+
+        # POST Success
+        mock_auth.update_password.return_value = (True, "Success")
+        response = await client.post("/profile", form={"password": "new_pw"})
+        assert response.status_code == 302
+
+        # POST Failure
+        mock_auth.update_password.return_value = (False, "Fail")
+        response = await client.post("/profile", form={"password": "new_pw"})
+        assert (
+            response.status_code == 302
+        )  # Redirects back to profile either way currently

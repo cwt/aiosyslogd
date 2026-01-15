@@ -167,8 +167,34 @@ When a custom path is provided, the server will **not** create a default file if
 | web_server           | bind_port     | The TCP port the web server should listen on.                            | 5141                    |
 | web_server           | debug         | Set to true to enable verbose logging for the web server.                | false                   |
 | web_server           | redact        | Set to true to redact the sensitive information (user, IP, MAC)          | false                   |
+| web_server           | users_file    | The path to the JSON file for storing user credentials.                  | "users.json"            |
 
 **Note:** when sql_dump is enabled, log_dump will be disabled.
+
+### **Web Interface Authentication**
+
+The web interface now includes user authentication to protect access to logs.
+
+#### **First-time Setup**
+On the first run, `aiosyslogd-web` will create a `users.json` file in the same directory as your `aiosyslogd.toml` file. This file will contain a default admin user with the following credentials:
+- **Username**: `admin`
+- **Password**: `admin`
+
+You will be required to log in with these credentials to access the web interface. It is highly recommended to change the default password after your first login.
+
+#### **User Roles**
+There are two user roles:
+- **Admin**: Can view logs, manage users (add, edit, delete), and change their own password.
+- **User**: Can view logs and change their own password.
+
+#### **Managing Users (Admins only)**
+Admins can access the "Users" page from the navigation bar to:
+- **Add new users**: Provide a username, password, and specify if the user should be an admin.
+- **Edit existing users**: Change a user's password, admin status, and enable/disable their account.
+- **Delete users**: Remove a user from the system.
+
+#### **Changing Your Password**
+All users can change their own password by clicking on their username in the navigation bar and selecting "Profile".
 
 ### **Performance Tuning: Finding the Optimal batch_size**
 

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - aiosyslogd{% endblock %}
+
+{% block content %}
+    <h1>{{ title }}</h1>
+    <form method="post">
+        <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input type="text" class="form-control" id="username" name="username" value="{{ user.username if user else '' }}" required {{ 'readonly' if user }}>
+        </div>
+        <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" class="form-control" id="password" name="password" {{ 'required' if not user }}>
+            {% if user %}
+            <div class="form-text">Leave blank to keep the current password.</div>
+            {% endif %}
+        </div>
+        <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="is_admin" name="is_admin" {{ 'checked' if user and user.is_admin }}>
+            <label class="form-check-label" for="is_admin">Is Admin</label>
+        </div>
+        {% if user %}
+        <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="is_enabled" name="is_enabled" {{ 'checked' if user and user.is_enabled }}>
+            <label class="form-check-label" for="is_enabled">Is Enabled</label>
+        </div>
+        {% endif %}
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a href="{{ url_for('list_users') }}" class="btn btn-secondary">Cancel</a>
+    </form>
+{% endblock %}

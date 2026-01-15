@@ -32,6 +32,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "bind_port": 5141,
         "debug": False,
         "redact": False,
+        "users_file": "users.json",
     },
 }
 
