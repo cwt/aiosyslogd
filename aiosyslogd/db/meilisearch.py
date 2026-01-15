@@ -48,7 +48,7 @@ class MeilisearchDriver(BaseDatabase):
             raise
         except Exception as e:
             logger.opt(exception=True).error(
-                f"An unexpected error occurred when connecting to Meilisearch"
+                "An unexpected error occurred when connecting to Meilisearch"
             )
             logger.debug(str(e))
             raise
@@ -150,7 +150,7 @@ class MeilisearchDriver(BaseDatabase):
 
             # Step 3: Check if any tasks failed.
             for task_result in completed_tasks:
-                if isinstance(task_result, Exception):
+                if isinstance(task_result, BaseException):
                     logger.error(
                         f"Error waiting for Meilisearch task: {task_result}"
                     )
