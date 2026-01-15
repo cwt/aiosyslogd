@@ -141,7 +141,7 @@ def main():
                 # Optional: print progress to the console
                 if (i + 1) % 100 == 0:
                     print(f"Sent {i + 1}/{num_messages} messages...", end='\r')
-            
+
             # Ensure the final count is printed
             print(f"Sent {num_messages}/{num_messages} messages.      ")
 
