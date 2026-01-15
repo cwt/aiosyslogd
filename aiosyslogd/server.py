@@ -19,9 +19,9 @@ import sys
 uvloop: ModuleType | None = None
 try:
     if sys.platform == "win32":
-        import winloop as uvloop
+        import winloop as uvloop  # type: ignore
     else:
-        import uvloop
+        import uvloop  # type: ignore
 except ImportError:
     pass  # uvloop or winloop is an optional for speedup, not a requirement
 
