@@ -114,7 +114,7 @@ driver = "meilisearch"
             with pytest.raises(SystemExit) as e:
                 load_config()
             # Check that the exit code is non-zero (typically 1)
-            assert e.type == SystemExit
+            assert e.type is SystemExit
             assert e.value.code is not None and e.value.code != 0
 
     @patch("aiosyslogd.config.os.environ.get", return_value=None)
@@ -134,5 +134,5 @@ driver = "meilisearch"
                 # --- Act & Assert ---
                 with pytest.raises(SystemExit) as e:
                     load_config()
-                assert e.type == SystemExit
+                assert e.type is SystemExit
                 assert e.value.code is not None and e.value.code != 0
