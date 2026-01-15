@@ -148,6 +148,7 @@ def test_get_db_driver_injection_attempt(capsys):
     assert "Invalid database driver" in captured.err
     assert f"'{malicious_driver_name}'" in captured.err
 
+
 @pytest.mark.asyncio
 async def test_process_datagram_invalid_encoding_logs_address(server, capsys):
     test_data = b"\xff\xfe"
