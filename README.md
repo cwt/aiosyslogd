@@ -230,6 +230,354 @@ A benchmarking script is included at scripts/loggen.py to help you find the best
 5. Tune and Repeat:
    If you see dropped logs (server received < 100,000), your `batch_size` is too high. If all logs are received, you can try increasing the `batch_size` in your `aiosyslogd.toml` file and run the test again. This allows you to find the highest value your specific hardware can handle without dropping packets.
 
+## **Running as a Daemon with Auto-Startup**
+
+You can run **aiosyslogd** as a system service that automatically starts after server reboot. This section describes multiple approaches including Podman Quadlet (easiest), root-less systemd services, and traditional system services.
+
+### **Podman Quadlet Setup (Easiest Method)**
+
+The easiest way to run **aiosyslogd** as a daemon is using Podman Quadlet, which allows you to define container services using simple configuration files.
+
+#### **1. Install Podman**
+
+Make sure Podman is installed on your system:
+
+```bash
+# On Ubuntu/Debian
+sudo apt install podman
+
+# On RHEL/CentOS/Fedora
+sudo dnf install podman
+```
+
+#### **2. Enable Podman Socket**
+
+Enable the Podman socket for root and/or user services:
+
+```bash
+# For root services
+sudo systemctl enable --now podman.socket
+
+# For user services (if running as non-root)
+systemctl --user enable --now podman.socket
+```
+
+#### **3. Create Quadlet Files**
+
+Create the Quadlet unit files in the appropriate directory:
+
+For user services: `~/.config/containers/systemd/`
+For system services: `/etc/containers/systemd/`
+
+**File: ~/.config/containers/systemd/aiosyslogd.container (for user services) or /etc/containers/systemd/aiosyslogd.container (for system services)**
+
+```
+[Unit]
+Description=aiosyslogd - Asynchronous Syslog Server
+After=network.target
+Wants=network.target
+
+[Container]
+Image=quay.io/cwt/aiosyslogd:latest
+Volume=%h/.aiosyslogd:/data
+Network=slirp4netns
+PublishPort=5140:5140/udp
+Environment=AIOSYSLOGD_CONFIG=/data/aiosyslogd.toml
+UserNS=keep-id
+
+[Install]
+WantedBy=default.target
+```
+
+**File: ~/.config/containers/systemd/aiosyslogd-web.container (for user services) or /etc/containers/systemd/aiosyslogd-web.container (for system services)**
+
+```
+[Unit]
+Description=aiosyslogd-web - Web Interface for aiosyslogd
+After=network.target
+Wants=network.target
+BindsTo=aiosyslogd.container
+
+[Container]
+Image=quay.io/cwt/aiosyslogd:latest
+Volume=%h/.aiosyslogd:/data
+Network=slirp4netns
+PublishPort=5141:5141/tcp
+Environment=AIOSYSLOGD_CONFIG=/data/aiosyslogd.toml
+UserNS=keep-id
+Command=aiosyslogd-web
+
+[Install]
+WantedBy=default.target
+```
+
+#### **4. Create Configuration Directory**
+
+Create a directory for your configuration files:
+
+```bash
+mkdir -p ~/.aiosyslogd
+cd ~/.aiosyslogd
+```
+
+Copy the default configuration to this directory:
+
+```bash
+# If you have the source code, copy the default config from the config directory
+cp /path/to/aiosyslogd/config/default-aiosyslogd.toml ~/.aiosyslogd/aiosyslogd.toml
+
+# Or create it manually with your preferred editor
+```
+
+#### **5. Start and Enable Services**
+
+Enable lingering for your user to allow services to start at boot even when not logged in (for user services):
+
+```bash
+sudo loginctl enable-linger $USER
+```
+
+Start and enable the services:
+
+```bash
+# For user services
+systemctl --user daemon-reload
+systemctl --user enable aiosyslogd.container
+systemctl --user enable aiosyslogd-web.container
+systemctl --user start aiosyslogd.container
+systemctl --user start aiosyslogd-web.container
+
+# For system services
+sudo systemctl daemon-reload
+sudo systemctl enable aiosyslogd.container
+sudo systemctl enable aiosyslogd-web.container
+sudo systemctl start aiosyslogd.container
+sudo systemctl start aiosyslogd-web.container
+```
+
+Check the status of the services:
+
+```bash
+# For user services
+systemctl --user status aiosyslogd.container
+systemctl --user status aiosyslogd-web.container
+
+# For system services
+sudo systemctl status aiosyslogd.container
+sudo systemctl status aiosyslogd-web.container
+```
+
+View logs for debugging:
+
+```bash
+# For user services
+journalctl --user-unit aiosyslogd.container -f
+journalctl --user-unit aiosyslogd-web.container -f
+
+# For system services
+sudo journalctl -u aiosyslogd.container -f
+sudo journalctl -u aiosyslogd-web.container -f
+```
+
+### **Root-less Service Setup (Python Installation)**
+
+If you prefer to run **aiosyslogd** directly from a Python installation rather than containers, you can use systemd user services:
+
+#### **1. Install aiosyslogd**
+
+First, install aiosyslogd using pip:
+
+```bash
+# Install globally for all users
+sudo pip install aiosyslogd
+
+# Or install for a specific user
+pip install --user aiosyslogd
+```
+
+#### **2. Create Configuration Directory**
+
+Create a directory for your configuration files:
+
+```bash
+mkdir -p ~/.aiosyslogd
+cd ~/.aiosyslogd
+```
+
+Copy the default configuration to this directory:
+
+```bash
+# If you have the source code, copy the default config from the config directory
+cp /path/to/aiosyslogd/config/default-aiosyslogd.toml ~/.aiosyslogd/aiosyslogd.toml
+
+# Or create it manually with your preferred editor
+```
+
+#### **3. Enable User Services**
+
+Enable lingering for your user to allow services to start at boot even when not logged in:
+
+```bash
+sudo loginctl enable-linger $USER
+```
+
+#### **4. Create Service Files**
+
+Create the systemd service files in `~/.config/systemd/user/`:
+
+```bash
+mkdir -p ~/.config/systemd/user/
+```
+
+Create `~/.config/systemd/user/aiosyslogd.service`:
+
+```
+[Unit]
+Description=aiosyslogd - Asynchronous Syslog Server
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+ExecStart=/usr/local/bin/aiosyslogd
+WorkingDirectory=%h/.aiosyslogd
+Environment=AIOSYSLOGD_CONFIG=%h/.aiosyslogd/aiosyslogd.toml
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+```
+
+Create `~/.config/systemd/user/aiosyslogd-web.service`:
+
+```
+[Unit]
+Description=aiosyslogd-web - Web Interface for aiosyslogd
+After=network.target
+Wants=network.target
+Requires=aiosyslogd.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+ExecStart=/usr/local/bin/aiosyslogd-web
+WorkingDirectory=%h/.aiosyslogd
+Environment=AIOSYSLOGD_CONFIG=%h/.aiosyslogd/aiosyslogd.toml
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+```
+
+#### **5. Start and Enable Services**
+
+Reload the systemd daemon and start the services:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable aiosyslogd.service
+systemctl --user enable aiosyslogd-web.service
+systemctl --user start aiosyslogd.service
+systemctl --user start aiosyslogd-web.service
+```
+
+Check the status of the services:
+
+```bash
+systemctl --user status aiosyslogd.service
+systemctl --user status aiosyslogd-web.service
+```
+
+View logs for debugging:
+
+```bash
+journalctl --user-unit aiosyslogd.service -f
+journalctl --user-unit aiosyslogd-web.service -f
+```
+
+### **Traditional System Service Setup (Python Installation)**
+
+If you need to run aiosyslogd as a system-wide service from a Python installation, create the following files in `/etc/systemd/system/`:
+
+**File: /etc/systemd/system/aiosyslogd.service**
+
+```
+[Unit]
+Description=aiosyslogd - Asynchronous Syslog Server
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+User=aiosyslogd
+Group=aiosyslogd
+ExecStart=/usr/local/bin/aiosyslogd
+WorkingDirectory=/var/lib/aiosyslogd
+Environment=AIOSYSLOGD_CONFIG=/etc/aiosyslogd/aiosyslogd.toml
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**File: /etc/systemd/system/aiosyslogd-web.service**
+
+```
+[Unit]
+Description=aiosyslogd-web - Web Interface for aiosyslogd
+After=network.target
+Wants=network.target
+Requires=aiosyslogd.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+User=aiosyslogd
+Group=aiosyslogd
+ExecStart=/usr/local/bin/aiosyslogd-web
+WorkingDirectory=/var/lib/aiosyslogd
+Environment=AIOSYSLOGD_CONFIG=/etc/aiosyslogd/aiosyslogd.toml
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then create the user and setup directories:
+
+```bash
+# Create system user
+sudo useradd -r -s /bin/false aiosyslogd
+
+# Create directories
+sudo mkdir -p /var/lib/aiosyslogd
+sudo chown aiosyslogd:aiosyslogd /var/lib/aiosyslogd
+
+# Copy configuration from the config directory
+sudo cp /path/to/aiosyslogd/config/default-aiosyslogd.toml /etc/aiosyslogd/aiosyslogd.toml
+sudo chown aiosyslogd:aiosyslogd /etc/aiosyslogd/aiosyslogd.toml
+```
+
+Finally, enable and start the services:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable aiosyslogd.service
+sudo systemctl enable aiosyslogd-web.service
+sudo systemctl start aiosyslogd.service
+sudo systemctl start aiosyslogd-web.service
+```
+
 ## **Integrating with rsyslog**
 
 You can use **rsyslog** as a robust, battle-tested frontend for **aiosyslogd**. This is useful for receiving logs on the standard privileged port (514) and then forwarding them to **aiosyslogd** running as a non-privileged user on a different port.
@@ -240,11 +588,47 @@ Here are two common configurations:
 
 If you already have an **rsyslog** server running and simply want to forward all logs to **aiosyslogd**, add the following lines to a new file in /etc/rsyslog.d/, such as 99-forward-to-aiosyslogd.conf. This configuration includes queueing to prevent log loss if **aiosyslogd** is temporarily unavailable.
 
-**File: /etc/rsyslog.d/rsyslog-forward.conf**
+**File: /etc/rsyslog.d/99-forward-to-aiosyslogd.conf (or use the template from config/rsyslog-forward.conf)**
 
 ```
-# This forwards all logs (*) to the server running on localhost:5140
-# with queueing enabled for reliability.
+$ActionQueueFileName fwdRule1 # unique name prefix for spool files
+$ActionQueueMaxDiskSpace 1g   # 1gb space limit (use as much as possible)
+$ActionQueueSaveOnShutdown on # save messages to disk on shutdown
+$ActionQueueType LinkedList   # run asynchronously
+$ActionResumeRetryCount -1    # infinite retries if host is down
+*.* @127.0.0.1:5140
+```
+
+You can copy this configuration from the project's config directory:
+
+```bash
+sudo cp /path/to/aiosyslogd/config/rsyslog-forward.conf /etc/rsyslog.d/99-forward-to-aiosyslogd.conf
+sudo systemctl restart rsyslog
+```
+
+### **2. Using rsyslog as a Dedicated Forwarder**
+
+If you want rsyslog to listen on the standard syslog port 514/udp and do nothing but forward to aiosyslogd, you can use a minimal configuration like this. This is a common pattern for privilege separation, allowing aiosyslogd to run as a non-root user.
+
+**File: /etc/rsyslog.conf (Minimal Example from config/rsyslog-minimal.conf)**
+
+```
+$WorkDirectory /var/lib/rsyslog
+
+$FileOwner root
+$FileGroup adm
+$FileCreateMode 0640
+$DirCreateMode 0755
+$Umask 0022
+
+module(load="immark")
+module(load="imuxsock")
+module(load="imudp")
+input(
+	type="imudp"
+	port="514"
+)
+
 $ActionQueueFileName fwdRule1
 $ActionQueueMaxDiskSpace 1g
 $ActionQueueSaveOnShutdown on
@@ -253,43 +637,74 @@ $ActionResumeRetryCount -1
 *.* @127.0.0.1:5140
 ```
 
-### **2. Using rsyslog as a Dedicated Forwarder**
+You can copy this configuration from the project's config directory:
 
-If you want rsyslog to listen on the standard syslog port 514/udp and do nothing but forward to aiosyslogd, you can use a minimal configuration like this. This is a common pattern for privilege separation, allowing aiosyslogd to run as a non-root user.
+```bash
+sudo cp /path/to/aiosyslogd/config/rsyslog-minimal.conf /etc/rsyslog.conf
+sudo systemctl restart rsyslog
+```
 
-**File: /etc/rsyslog.conf (Minimal Example)**
+## **Nginx Reverse Proxy Setup**
+
+For production deployments, it's recommended to put aiosyslogd-web behind a reverse proxy like nginx. This provides benefits like SSL termination, static file serving, and improved security.
+
+### **Basic Nginx Configuration**
+
+Create a configuration file in `/etc/nginx/sites-available/aiosyslogd`:
 
 ```
-# Minimal rsyslog.conf to listen on port 514 and forward to aiosyslogd
+server {
+    listen 80;
+    server_name your-domain.com;  # Change this to your domain
 
-# --- Global Settings ---
-$WorkDirectory /var/lib/rsyslog
-$FileOwner root
-$FileGroup adm
-$FileCreateMode 0640
-$DirCreateMode 0755
-$Umask 0022
+    # SSL configuration (recommended for production)
+    # listen 443 ssl;
+    # ssl_certificate /path/to/your/certificate.crt;
+    # ssl_certificate_key /path/to/your/private.key;
 
-# --- Modules ---
-# Unload modules we don't need
-module(load="immark" mode="off")
-module(load="imuxsock" mode="off")
-# Load the UDP input module
-module(load="imudp")
-input(
-    type="imudp"
-    port="514"
-)
+    location / {
+        proxy_pass http://127.0.0.1:5141;  # aiosyslogd-web default port
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
 
-# --- Forwarding Rule ---
-# Forward all received messages to aiosyslogd
-$ActionQueueFileName fwdToAiosyslogd
-$ActionQueueMaxDiskSpace 1g
-$ActionQueueSaveOnShutdown on
-$ActionQueueType LinkedList
-$ActionResumeRetryCount -1
-*.* @127.0.0.1:5140
+        # WebSocket support if needed
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # Optional: Basic security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+}
 ```
+
+Enable the site:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/aiosyslogd /etc/nginx/sites-enabled/
+sudo nginx -t  # Test configuration
+sudo systemctl reload nginx
+```
+
+### **SSL/HTTPS Configuration**
+
+For secure access, configure SSL certificates. If you're using Let's Encrypt:
+
+```bash
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d your-domain.com
+```
+
+This will automatically update your nginx configuration with SSL settings.
 
 ## **Using as a Library**
 
