@@ -305,7 +305,7 @@ Network=slirp4netns
 PublishPort=5141:5141/tcp
 Environment=AIOSYSLOGD_CONFIG=/data/aiosyslogd.toml
 UserNS=keep-id
-Command=aiosyslogd-web
+Exec=aiosyslogd-web
 
 [Install]
 WantedBy=default.target
@@ -342,41 +342,41 @@ Start and enable the services:
 ```bash
 # For user services
 systemctl --user daemon-reload
-systemctl --user enable aiosyslogd.container
-systemctl --user enable aiosyslogd-web.container
-systemctl --user start aiosyslogd.container
-systemctl --user start aiosyslogd-web.container
+systemctl --user enable aiosyslogd
+systemctl --user enable aiosyslogd-web
+systemctl --user start aiosyslogd
+systemctl --user start aiosyslogd-web
 
 # For system services
 sudo systemctl daemon-reload
-sudo systemctl enable aiosyslogd.container
-sudo systemctl enable aiosyslogd-web.container
-sudo systemctl start aiosyslogd.container
-sudo systemctl start aiosyslogd-web.container
+sudo systemctl enable aiosyslogd
+sudo systemctl enable aiosyslogd-web
+sudo systemctl start aiosyslogd
+sudo systemctl start aiosyslogd-web
 ```
 
 Check the status of the services:
 
 ```bash
 # For user services
-systemctl --user status aiosyslogd.container
-systemctl --user status aiosyslogd-web.container
+systemctl --user status aiosyslogd
+systemctl --user status aiosyslogd-web
 
 # For system services
-sudo systemctl status aiosyslogd.container
-sudo systemctl status aiosyslogd-web.container
+sudo systemctl status aiosyslogd
+sudo systemctl status aiosyslogd-web
 ```
 
 View logs for debugging:
 
 ```bash
 # For user services
-journalctl --user-unit aiosyslogd.container -f
-journalctl --user-unit aiosyslogd-web.container -f
+journalctl --user-unit aiosyslogd -f
+journalctl --user-unit aiosyslogd-web -f
 
 # For system services
-sudo journalctl -u aiosyslogd.container -f
-sudo journalctl -u aiosyslogd-web.container -f
+sudo journalctl -u aiosyslogd -f
+sudo journalctl -u aiosyslogd-web -f
 ```
 
 ### **Root-less Service Setup (Python Installation)**
