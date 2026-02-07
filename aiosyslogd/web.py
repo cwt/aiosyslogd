@@ -146,7 +146,7 @@ async def startup() -> None:
     """Initial setup before serving requests."""
     app.logger.info(  # Verify the event loop policy being used.
         f"{__name__.title()} is running with "
-        f"{asyncio.get_event_loop().__class__.__module__}."
+        f"{asyncio.get_running_loop().__class__.__module__}."
     )
 
 

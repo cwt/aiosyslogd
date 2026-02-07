@@ -272,9 +272,16 @@ def main() -> None:
     )
     if uvloop:
         uvloop.install()
-    logger.info(
-        f"Using {asyncio.get_event_loop().__module__} for the event loop."
-    )
+
+    def get_event_loop_info():
+        try:
+            loop = asyncio.get_running_loop()
+            return loop.__class__.__module__
+        except RuntimeError:
+            # If no running loop, return the default
+            return asyncio.new_event_loop().__class__.__module__
+
+    logger.info(f"Using {get_event_loop_info()} for the event loop.")
     try:
         asyncio.run(run_server())
     except (KeyboardInterrupt, asyncio.CancelledError):
