@@ -1,6 +1,6 @@
 # Define build-time arguments for version management
 ARG ALMA_IMAGE=9-minimal
-ARG POETRY_VERSION=2.1.3
+ARG POETRY_VERSION=2.2.1
 
 # Stage 1: Build Stage
 # This stage installs dependencies using Poetry into a virtual environment.
@@ -31,7 +31,7 @@ COPY . .
 # --compile: Compile the dependencies to bytecode for performance.
 # --without dev: Exclude development dependencies.
 # --extras speed: Include optional dependencies for performance.
-RUN poetry install --compile --without dev --extras speed
+RUN poetry install --compile --without dev --extras speed --extras gemini
 
 
 # Stage 2: Final Runtime Stage
