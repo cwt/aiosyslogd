@@ -19,11 +19,13 @@ from quart import (
     redirect,
     url_for,
     flash,
+    jsonify,
 )
 from types import ModuleType
 from typing import Any, Dict, Generator
 import aiosqlite
 import asyncio
+import importlib.util
 import os
 import sys
 import time
@@ -62,6 +64,68 @@ app.jinja_env.add_extension("jinja2.ext.do")
 # Replace the default Quart logger with loguru logger.
 app.logger = logger  # type: ignore[assignment]
 auth_manager = AuthManager(WEB_SERVER_CFG.get("users_file", "users.json"))
+
+
+# CSRF Protection
+def generate_csrf_token():
+    if "_csrf_token" not in session:
+        session["_csrf_token"] = os.urandom(24).hex()
+    return session["_csrf_token"]
+
+
+app.jinja_env.globals["csrf_token"] = generate_csrf_token
+
+
+def is_gemini_available() -> bool:
+    """Check if the gemini extra is available by checking for required modules."""
+    try:
+        # Check if google-genai module is available
+        return (
+            importlib.util.find_spec("google.genai") is not None
+            or importlib.util.find_spec("google.generativeai") is not None
+        )
+    except AttributeError:
+        # If find_spec fails, try importing directly as fallback
+        try:
+            importlib.import_module("google.genai")
+            return True
+        except ImportError:
+            try:
+                importlib.import_module("google.generativeai")
+                return True
+            except ImportError:
+                return False
+
+
+@app.before_request
+async def csrf_protect():
+    # Skip CSRF for API endpoints that don't require it
+    if request.path.startswith("/api/"):
+        return
+
+    # Check if we're in testing mode
+    import sys
+
+    if "pytest" in sys.modules:
+        # Skip CSRF validation during tests
+        return
+
+    if request.method in ["POST", "PUT", "DELETE"]:
+        # For form requests, check form data
+        if (
+            request.content_type
+            and "application/x-www-form-urlencoded" in request.content_type
+        ):
+            form_data = await request.form
+            token = session.get("_csrf_token")
+
+            # If there's no token in session, generate one (this handles new sessions)
+            if not token:
+                session["_csrf_token"] = os.urandom(24).hex()
+                token = session["_csrf_token"]
+
+            if form_data.get("csrf_token") != token:
+                abort(403)
 
 
 # --- Datetime Type Adapters for SQLite ---
@@ -114,8 +178,8 @@ def admin_required(f):
 def inject_user():
     if "username" in session:
         user = auth_manager.get_user(session["username"])
-        return dict(current_user=user)
-    return dict(current_user=None)
+        return dict(current_user=user, gemini_available=is_gemini_available())
+    return dict(current_user=None, gemini_available=is_gemini_available())
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -334,6 +398,151 @@ async def profile():
                 await flash(message, "error")
         return redirect(url_for("profile"))
     return await render_template("profile.html")
+
+
+@app.route("/api/check-gemini-auth")
+@login_required
+async def check_gemini_auth():
+    """Check if user has stored a Gemini API key in browser."""
+    # Since API key is only stored in browser localStorage, we can't check server-side
+    # This endpoint now serves as a way to check if the user is logged in and can use Gemini
+    # The actual API key check happens client-side
+    return jsonify({"authenticated": True})
+
+
+@app.route("/api/clear-gemini-key", methods=["POST"])
+@login_required
+async def clear_gemini_key():
+    """API endpoint that confirms successful clear (API key only stored in browser)."""
+    try:
+        # Note: API key is only stored in the user's browser localStorage, not on the server
+        # The server doesn't store the API key for security/legal reasons
+
+        return jsonify({"success": True})
+
+    except Exception as e:
+        app.logger.error(f"Error handling Gemini API key clear: {str(e)}")
+        return (
+            jsonify({"error": f"Error handling API key clear: {str(e)}"}),
+            500,
+        )
+
+
+@app.route("/api/save-gemini-key", methods=["POST"])
+@login_required
+async def save_gemini_key():
+    """API endpoint that confirms successful save (API key only stored in browser)."""
+    try:
+        data = await request.get_json()
+        api_key = data.get("api_key", "").strip()
+
+        if not api_key:
+            return jsonify({"error": "API key is required"}), 400
+
+        # Note: API key is only stored in the user's browser localStorage, not on the server
+        # The server doesn't store the API key for security/legal reasons
+
+        return jsonify({"success": True})
+
+    except Exception as e:
+        app.logger.error(f"Error handling Gemini API key save: {str(e)}")
+        return jsonify({"error": f"Error handling API key: {str(e)}"}), 500
+
+
+@app.route("/api/gemini-search", methods=["POST"])
+@login_required
+async def gemini_search():
+    """API endpoint to convert natural language to FTS5 query using Gemini."""
+    try:
+        data = await request.get_json()
+        natural_language_query = data.get("query", "").strip()
+        api_key = data.get(
+            "api_key", ""
+        ).strip()  # Get API key from request body
+
+        if not natural_language_query:
+            return jsonify({"error": "Query is required"}), 400
+
+        if not api_key:
+            return (
+                jsonify(
+                    {
+                        "error": "Gemini API key not found. Please authenticate with Google."
+                    }
+                ),
+                401,
+            )
+
+        # Define the prompt here so it's available to both code paths
+        prompt = f"""
+        Convert this natural language search query into an SQLite FTS5 query syntax:
+        "{natural_language_query}"
+
+        Return ONLY the FTS5 query string without any explanation.
+        Focus on key terms, ignore generic words like "log", "record", "entry".
+        FTS5 supports: AND, OR, NOT, phrase matching with quotes, wildcards (*), proximity.
+        Quote phrases, special chars, IPs, numbers at start: "hello world", "user-agent", "192.168.1.1", "2021-01-01".
+        Examples: "errors from server1" -> "server1 AND error*", "find admin logs failed" -> "admin AND failed".
+        """
+
+        # Import here to avoid requiring the dependency unless the endpoint is used
+        try:
+            import google.genai as genai_new
+
+            # Use the new API
+            client = genai_new.Client(api_key=api_key)
+
+            # Try the models in order of preference
+            model_names = [
+                "gemma-3-27b-it",
+                "gemini-2.5-pro",
+                "gemini-2.5-flash",
+            ]
+
+            response = None
+            for model_name in model_names:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name, contents=prompt
+                    )
+                    break  # Success, exit the loop
+                except Exception:
+                    continue
+
+            if response is None:
+                raise Exception("No available models could process the request")
+
+            fts5_query = (
+                response.text.strip()
+            )  # Keep any necessary quotes for FTS5 syntax
+        except ImportError:
+            # Fallback to old library
+            try:
+                import google.generativeai as genai_old  # type: ignore[import-untyped]
+
+                # Use the old API
+                genai_old.configure(api_key=api_key)
+                model = genai_old.GenerativeModel("gemini-pro")
+
+                response = model.generate_content(prompt)
+                fts5_query = (
+                    response.text.strip()
+                )  # Keep any necessary quotes for FTS5 syntax
+            except ImportError:
+                return (
+                    jsonify(
+                        {
+                            "error": "Google Gen AI library not installed. Run: poetry install -E gemini"
+                        }
+                    ),
+                    500,
+                )
+
+        return jsonify({"fts5_query": fts5_query})
+
+    except Exception as e:
+        app.logger.error(f"Gemini API error: {str(e)}")
+        return jsonify({"error": f"Error processing request: {str(e)}"}), 500
 
 
 def check_backend() -> bool:

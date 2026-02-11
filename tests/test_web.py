@@ -119,12 +119,10 @@ async def test_get_time_boundary_ids():
     # --- Arrange: Create an in-memory database with test data ---
     conn = await aiosqlite.connect(":memory:")
     conn.row_factory = aiosqlite.Row
-    await conn.execute(
-        """CREATE TABLE SystemEvents (
+    await conn.execute("""CREATE TABLE SystemEvents (
            ID INTEGER PRIMARY KEY,
            ReceivedAt TIMESTAMP
-        )"""
-    )
+        )""")
     test_data = [
         (1, "2025-06-20 10:00:00"),
         (2, "2025-06-20 10:30:00"),

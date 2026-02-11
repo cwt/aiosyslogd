@@ -1,0 +1,26 @@
+# Allow longer lines for code examples and URLs
+MD013:
+  line_length: 350
+  tables: false
+  code_blocks: false
+
+# Allow emphasis instead of headings for numbered lists
+MD036: false
+
+# Allow dollar signs in code blocks
+MD014: false
+
+# Allow fenced code blocks without languages (though we should add them)
+MD040: false
+
+# Allow duplicate headings in changelog-style sections
+MD024: false
+
+# Allow hard tabs in certain contexts
+MD010: false
+
+# Allow bare URLs in configuration examples
+MD034: false
+
+# Allow heading levels to increment by more than one level
+MD001: false

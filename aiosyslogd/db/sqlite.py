@@ -78,13 +78,11 @@ class SQLiteDriver(BaseDatabase):
                     f"Creating new tables and indexes in {self._current_db_path}: "
                     f"{table_name}, {fts_table_name}"
                 )
-                await self.db.execute(
-                    f"""CREATE TABLE \"{table_name}\" (
+                await self.db.execute(f"""CREATE TABLE \"{table_name}\" (
                     ID INTEGER PRIMARY KEY AUTOINCREMENT, Facility INTEGER,
                     Priority INTEGER, FromHost TEXT, InfoUnitID INTEGER,
                     ReceivedAt TIMESTAMP, DeviceReportedTime TIMESTAMP,
-                    SysLogTag TEXT, ProcessID TEXT, Message TEXT)"""
-                )
+                    SysLogTag TEXT, ProcessID TEXT, Message TEXT)""")
                 await self.db.execute(
                     f'CREATE INDEX "idx_{table_name}_ReceivedAt" ON "{table_name}" (ReceivedAt)'
                 )

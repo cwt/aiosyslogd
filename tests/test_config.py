@@ -8,7 +8,6 @@ from aiosyslogd.config import (
     DEFAULT_CONFIG,
 )
 
-
 # --- Test Suite for config.py ---
 
 

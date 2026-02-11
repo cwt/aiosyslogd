@@ -23,6 +23,7 @@
 
 <!-- Search and Filter Form -->
 <form action="{{ url_for('index') }}" method="get" class="bg-white p-4 rounded-lg shadow-sm mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <!-- Database Selector -->
     <div class="mb-3">
         <label for="db_file" class="form-label">Database File</label>
@@ -37,7 +38,10 @@
     <div class="input-group mb-3">
         <input type="text" name="q" value="{{ search_query }}" placeholder="Enter FTS5 query for Message (e.g., 'error* OR failure')" class="form-control form-control-lg">
         <button type="submit" class="btn btn-primary">Search</button>
-        <a href="{{ url_for('index', db_file=selected_db) }}" class="btn btn-outline-secondary" title="Reset Search and Filters">Reset</a>
+        {% if gemini_available %}
+        <button type="button" id="gemini-btn" class="btn btn-outline-success" title="Ask Gemini to create search query" style="color: green;" onmouseover="this.style.color='white'; this.style.backgroundColor='green';" onmouseout="this.style.color='green'; this.style.backgroundColor='';">✦</button>
+        {% endif %}
+        <a href="{{ url_for('index', db_file=selected_db) }}" class="btn btn-outline-danger" title="Reset Search and Filters" style="color: red; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.color='white'; this.style.backgroundColor='red';" onmouseout="this.style.color='red'; this.style.backgroundColor='';">↻</a>
     </div>
 
     <!-- Advanced Filters -->
@@ -107,10 +111,10 @@
     <table class="table table-striped table-sm">
         <thead>
             <tr>
-                <th>ID</th>
-                <th>Received At</th>
-                <th>From Host</th>
-                <th>Message</th>
+                <th style="white-space: nowrap;">ID</th>
+                <th style="white-space: nowrap;">Received At</th>
+                <th style="white-space: nowrap;">From Host</th>
+                <th style="white-space: nowrap;">Message</th>
             </tr>
         </thead>
         <tbody>
@@ -309,5 +313,260 @@ document.addEventListener('DOMContentLoaded', function() {
 
     initialize();
 });
+
+// Gemini integration
+document.addEventListener('DOMContentLoaded', function() {
+    const geminiBtn = document.getElementById('gemini-btn');
+
+    if (geminiBtn) {
+        geminiBtn.addEventListener('click', function() {
+            // Check if user has authenticated with Google/Gemini (by checking if API key exists)
+            const hasApiKey = localStorage.getItem('gemini_api_key');
+            if (!hasApiKey) {
+                // Show authentication modal which guides to profile page
+                showGeminiAuthModal();
+                return;
+            }
+
+            // Show the Gemini modal
+            const modal = new bootstrap.Modal(document.getElementById('geminiModal'));
+            modal.show();
+        });
+    }
+
+    // Check authentication status on page load
+    async function checkGeminiAuthStatus() {
+        try {
+            // Check if API key exists in localStorage
+            const apiKey = localStorage.getItem('gemini_api_key');
+            if (apiKey) {
+                localStorage.setItem('gemini_authenticated', 'true');
+            } else {
+                localStorage.removeItem('gemini_authenticated');
+            }
+        } catch (error) {
+            console.error('Error checking auth status:', error);
+        }
+    }
+
+    // Call on page load
+    checkGeminiAuthStatus();
+
+    // Use event delegation for dynamically added elements
+    document.addEventListener('click', function(event) {
+        // Handle Gemini API key save
+        if (event.target.id === 'gemini-auth-submit') {
+            handleGeminiAuthSubmit();
+        }
+
+        // Handle Gemini query submit
+        if (event.target.id === 'gemini-submit') {
+            handleGeminiSubmit();
+        }
+    });
+
+    async function handleGeminiAuthSubmit() {
+        const apiKeyInput = document.getElementById('gemini-api-key');
+        const authResponseDiv = document.getElementById('gemini-auth-response');
+        const authLoader = document.getElementById('gemini-auth-loader');
+
+        const apiKey = apiKeyInput.value.trim();
+
+        if (!apiKey) {
+            authResponseDiv.innerHTML = '<p class="text-warning">Please enter your Gemini API key.</p>';
+            authResponseDiv.style.display = 'block';
+            return;
+        }
+
+        try {
+            authResponseDiv.style.display = 'none';
+            authLoader.style.display = 'block';
+
+            const resp = await fetch('/api/save-gemini-key', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('[name="csrf_token"]').value || ''
+                },
+                body: JSON.stringify({api_key: apiKey})
+            });
+
+            const data = await resp.json();
+
+            if (resp.ok) {
+                localStorage.setItem('gemini_authenticated', 'true');
+                localStorage.setItem('gemini_api_key', apiKey); // Store for convenience
+                authResponseDiv.innerHTML = '<p class="text-success">Successfully authenticated with Gemini!</p>';
+                authResponseDiv.style.display = 'block';
+
+                // Close auth modal and open main Gemini modal
+                setTimeout(() => {
+                    bootstrap.Modal.getInstance(document.getElementById('geminiAuthModal')).hide();
+                    const mainModal = new bootstrap.Modal(document.getElementById('geminiModal'));
+                    mainModal.show();
+                }, 1000);
+            } else {
+                authResponseDiv.innerHTML = `<p class="text-danger">Error: ${data.error || 'Authentication failed'}</p>`;
+                authResponseDiv.style.display = 'block';
+            }
+        } catch (error) {
+            authResponseDiv.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
+            authResponseDiv.style.display = 'block';
+        } finally {
+            authLoader.style.display = 'none';
+        }
+    }
+
+    async function handleGeminiSubmit() {
+        const userInput = document.getElementById('gemini-input').value;
+        const responseDiv = document.getElementById('gemini-response');
+        const loader = document.getElementById('gemini-loader');
+
+        if (!userInput.trim()) {
+            responseDiv.innerHTML = '<p class="text-warning">Please enter a search query.</p>';
+            responseDiv.style.display = 'block';
+            return;
+        }
+
+        try {
+            responseDiv.style.display = 'none';
+            loader.style.display = 'block';
+
+            // Get the API key from localStorage
+            const apiKey = localStorage.getItem('gemini_api_key');
+            if (!apiKey) {
+                responseDiv.innerHTML = '<p class="text-danger">Error: Gemini API key not found. Please save your API key in your profile.</p>';
+                responseDiv.style.display = 'block';
+                loader.style.display = 'none';
+                return;
+            }
+
+            const resp = await fetch('/api/gemini-search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('[name="csrf_token"]').value || ''
+                },
+                body: JSON.stringify({
+                    query: userInput,
+                    api_key: apiKey
+                })
+            });
+
+            const data = await resp.json();
+
+            if (resp.ok) {
+                responseDiv.innerHTML = `<p><strong>Generated FTS5 Query:</strong> <code>${data.fts5_query}</code></p>`;
+                responseDiv.style.display = 'block';
+
+                // Option to insert the query into the search box
+                const insertBtn = document.createElement('button');
+                insertBtn.className = 'btn btn-success btn-sm mt-2';
+                insertBtn.textContent = 'Use This Query';
+                insertBtn.onclick = function() {
+                    document.querySelector('input[name="q"]').value = data.fts5_query;
+                    document.querySelector('form').submit();
+                    bootstrap.Modal.getInstance(document.getElementById('geminiModal')).hide();
+                };
+                responseDiv.appendChild(insertBtn);
+            } else {
+                responseDiv.innerHTML = `<p class="text-danger">Error: ${data.error || 'Unknown error'}</p>`;
+                responseDiv.style.display = 'block';
+            }
+        } catch (error) {
+            responseDiv.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
+            responseDiv.style.display = 'block';
+        } finally {
+            loader.style.display = 'none';
+        }
+    }
+
+});
+
+// Add the modals to the page only if gemini is available
+{% if gemini_available %}
+document.addEventListener('DOMContentLoaded', function() {
+    const body = document.body;
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = geminiModalsHtml;
+    body.appendChild(tempDiv);
+});
+{% endif %}
+
+function showGeminiAuthModal() {
+    const modal = new bootstrap.Modal(document.getElementById('geminiAuthModal'));
+    modal.show();
+}
+
+// Modal HTML elements - these will be added to the page
+const geminiModalsHtml = `
+<!-- Gemini Authentication Modal -->
+<div class="modal fade" id="geminiAuthModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Configure Gemini API Access</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>To use the Gemini natural language search feature, you need to provide your own Gemini API key.</p>
+
+                <h6>How to get your Gemini API key:</h6>
+                <ol>
+                    <li>Go to <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></li>
+                    <li>Create an account or sign in with your Google account</li>
+                    <li>Click "Get API Key" or "Create API Key"</li>
+                    <li>Follow the instructions to create a new API key</li>
+                    <li>Copy the API key</li>
+                </ol>
+
+                <p>Then go to your <a href="/profile">Profile page</a> to save your API key.</p>
+
+                <div class="mb-3">
+                    <label for="gemini-api-key" class="form-label">Your Gemini API Key</label>
+                    <input type="password" id="gemini-api-key" class="form-control" placeholder="Enter your Gemini API key">
+                    <div class="form-text">
+                        Your API key is stored locally in your browser and used only for Gemini API requests.
+                        It is not sent to any server except Google's.
+                    </div>
+                </div>
+
+                <div id="gemini-auth-response" class="mt-3" style="display:none;"></div>
+                <div id="gemini-auth-loader" class="spinner-border text-primary mt-3" style="display:none;" role="status">
+                    <span class="visually-hidden">Saving...</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="gemini-auth-submit">Save API Key</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gemini Query Modal -->
+<div class="modal fade" id="geminiModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ask Gemini for Search Query</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <textarea id="gemini-input" class="form-control" rows="5" placeholder="Describe what you want to search for in plain language..."></textarea>
+                <div id="gemini-response" class="mt-3" style="display:none;"></div>
+                <div id="gemini-loader" class="spinner-border text-primary mt-3" style="display:none;" role="status">
+                    <span class="visually-hidden">Generating query...</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="gemini-submit">Generate Query</button>
+            </div>
+        </div>
+    </div>
+</div>
+`;
+
 </script>
 {% endblock %}
