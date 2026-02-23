@@ -40,7 +40,8 @@ DB_CFG = CFG.get("database", {})
 DB_DRIVER: str = DB_CFG.get("driver", "sqlite")
 BATCH_SIZE: int = int(DB_CFG.get("batch_size", 100))
 BATCH_TIMEOUT: int = int(DB_CFG.get("batch_timeout", 5))
-SQL_DUMP: bool = DB_CFG.get("sql_dump", False)
+# SQL_DUMP is now driver-specific, check SQLite config for backward compatibility
+SQL_DUMP: bool = DB_CFG.get("sqlite", {}).get("sql_dump", False)
 
 
 # --- Security: Define an allowlist of valid database drivers ---
@@ -62,9 +63,6 @@ def get_db_driver() -> BaseDatabase | None:
         driver_module = import_module(f".db.{DB_DRIVER}", package="aiosyslogd")
         driver_class = getattr(driver_module, f"{DB_DRIVER.capitalize()}Driver")
         driver_config = DB_CFG.get(DB_DRIVER, {})
-        # Pass general db settings to the driver as well
-        driver_config["debug"] = DEBUG
-        driver_config["sql_dump"] = SQL_DUMP
         return driver_class(driver_config)
     except (ImportError, AttributeError) as e:
         logger.opt(exception=True).error(

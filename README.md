@@ -165,12 +165,12 @@ When a custom path is provided, the server will **not** create a default file if
 
 These options control the main syslog server behavior:
 
-| Key       | Description                                                            | Default   |
-| :-------- | :--------------------------------------------------------------------- | :-------- |
-| bind_ip   | The IP address the server should bind to.                              | "0.0.0.0" |
-| bind_port | The UDP port to listen on.                                             | 5140      |
-| debug     | Set to true to enable verbose logging for parsing and database errors. | false     |
-| log_dump  | Set to true to print every received message to the console.            | false     |
+| Key       | Description                                                      | Default   |
+| :-------- | :--------------------------------------------------------------- | :-------- |
+| bind_ip   | The IP address the server should bind to.                        | "0.0.0.0" |
+| bind_port | The UDP port to listen on.                                       | 5140      |
+| debug     | Set to true to enable verbose logging for syslog parsing errors. | false     |
+| log_dump  | Set to true to print every received message to the console.      | false     |
 
 #### **Database Settings**
 
@@ -181,18 +181,19 @@ These options control how messages are stored:
 | driver        | The database backend to use ("sqlite" or "meilisearch").                 | "sqlite" |
 | batch_size    | The number of messages to batch together before writing to the database. | 100      |
 | batch_timeout | The maximum time in seconds to wait before writing an incomplete batch.  | 5        |
-| sql_dump      | Set to true to print the SQLite command and parameters before execution. | false    |
-
-**Note:** When `sql_dump` is enabled, `log_dump` will be automatically disabled.
 
 #### **SQLite Database Settings**
 
 Specific settings for SQLite backend:
 
-| Key              | Description                                                  | Default          |
-| :--------------- | :----------------------------------------------------------- | :--------------- |
-| database         | The path to the SQLite database file.                        | "syslog.sqlite3" |
-| retention_months | Number of months to retain old database files (SQLite only). | 12               |
+| Key              | Description                                                              | Default          |
+| :--------------- | :----------------------------------------------------------------------- | :--------------- |
+| database         | The path to the SQLite database file.                                    | "syslog.sqlite3" |
+| retention_months | Number of months to retain old database files (SQLite only).             | 12               |
+| sql_dump         | Set to true to print the SQLite command and parameters before execution. | false            |
+| debug            | Set to true to enable verbose logging for SQLite database operations.    | false            |
+
+**Note:** When `sql_dump` is enabled, `log_dump` will be automatically disabled.
 
 **Automatic Cleanup of Old Databases:**
 
@@ -211,10 +212,11 @@ To delete all old database files, set `retention_months = 0`.
 
 Specific settings for Meilisearch backend:
 
-| Key     | Description                             | Default                 |
-| :------ | :-------------------------------------- | :---------------------- |
-| url     | The URL of the Meilisearch instance.    | "http://127.0.0.1:7700" |
-| api_key | The API key for Meilisearch (optional). | ""                      |
+| Key     | Description                                                       | Default                 |
+| :------ | :---------------------------------------------------------------- | :---------------------- |
+| url     | The URL of the Meilisearch instance.                              | "http://127.0.0.1:7700" |
+| api_key | The API key for Meilisearch (optional).                           | ""                      |
+| debug   | Set to true to enable verbose logging for Meilisearch operations. | false                   |
 
 #### **Web Server Settings**
 
