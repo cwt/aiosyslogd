@@ -3,6 +3,7 @@ from . import BaseDatabase
 from datetime import datetime
 from typing import Any, Dict, List
 import aiosqlite
+import glob
 import os
 from loguru import logger
 
@@ -18,8 +19,10 @@ class SQLiteDriver(BaseDatabase):
         self.db_path_template = config.get("database", "syslog.sqlite3")
         self.sql_dump = config.get("sql_dump", False)
         self.debug = config.get("debug", False)
+        self.retention_months = config.get("retention_months", 12)
         self.db: aiosqlite.Connection | None = None
         self._current_db_path: str | None = None
+        pass
 
     def _get_db_path_for_month(self, dt: datetime) -> str:
         """Generates a monthly database filename, e.g., syslog_202506.sqlite3"""
@@ -31,7 +34,7 @@ class SQLiteDriver(BaseDatabase):
         logger.info(
             "SQLite driver initialized. Connection will be made on first write."
         )
-        pass
+        await self.cleanup_old_databases()
 
     async def close(self) -> None:
         """Closes the current database connection if it exists."""
@@ -42,6 +45,67 @@ class SQLiteDriver(BaseDatabase):
             )
             self.db = None
             self._current_db_path = None
+
+    def _get_database_files(self) -> List[tuple[str, datetime]]:
+        """Returns a list of (filepath, month_datetime) tuples for existing database files."""
+        db_dir = os.path.dirname(self.db_path_template) or "."
+        base_pattern = os.path.basename(self.db_path_template)
+        base, ext = os.path.splitext(base_pattern)
+        pattern = os.path.join(db_dir, f"{base}_*{ext}")
+
+        db_files = []
+        for filepath in glob.glob(pattern):
+            filename = os.path.basename(filepath)
+            try:
+                month_str = filename.replace(f"{base}_", "").replace(ext, "")
+                dt = datetime.strptime(month_str, "%Y%m")
+                db_files.append((filepath, dt))
+            except ValueError:
+                logger.warning(
+                    f"Skipping invalid database filename: {filename}"
+                )
+        return db_files
+
+    async def cleanup_old_databases(self) -> None:
+        """Deletes old database files, keeping only the most recent retention_months monthly files."""
+        db_files = self._get_database_files()
+        # Exclude the current database file from deletion
+        all_monthly = [
+            (f, dt) for f, dt in db_files if f != self._current_db_path
+        ]
+        if self.retention_months <= 0:
+            to_delete = all_monthly
+        else:
+            # Sort by date descending (most recent first)
+            sorted_monthly = sorted(
+                all_monthly, key=lambda x: x[1], reverse=True
+            )
+            # Keep only the most recent retention_months
+            to_delete = sorted_monthly[self.retention_months :]
+
+        deleted_count = 0
+        for filepath, file_dt in to_delete:
+            try:
+                os.remove(filepath)
+                logger.info(f"Deleted old database file: {filepath}")
+                wal_file = filepath + "-wal"
+                shm_file = filepath + "-shm"
+                if os.path.exists(wal_file):
+                    os.remove(wal_file)
+                    logger.debug(f"Deleted WAL file: {wal_file}")
+                if os.path.exists(shm_file):
+                    os.remove(shm_file)
+                    logger.debug(f"Deleted SHM file: {shm_file}")
+                deleted_count += 1
+            except OSError as e:
+                logger.error(f"Failed to delete {filepath}: {e}")
+
+        if deleted_count > 0:
+            logger.info(
+                f"Cleanup complete: deleted {deleted_count} old database file(s)"
+            )
+        else:
+            logger.debug("No old database files to delete")
 
     async def _switch_db_if_needed(self, dt: datetime) -> None:
         """
@@ -56,6 +120,9 @@ class SQLiteDriver(BaseDatabase):
             logger.info(
                 f"Month changed. Switching connection to '{target_db_path}'..."
             )
+            # Clean up old databases before switching to the new one
+            await self.cleanup_old_databases()
+
             self.db = await aiosqlite.connect(target_db_path)
             await self.db.execute("PRAGMA journal_mode=WAL;")
             await self.db.commit()

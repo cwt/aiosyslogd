@@ -19,6 +19,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "batch_size": 100,
         "batch_timeout": 5,
         "sql_dump": False,
+        "retention_months": 12,
         "sqlite": {
             "database": "syslog.sqlite3",
         },
