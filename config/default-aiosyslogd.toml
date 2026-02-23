@@ -17,6 +17,7 @@ bind_ip = "0.0.0.0"
 bind_port = 5141
 debug = false
 redact = false
+users_file = "users.json"
 
 [database.sqlite]
 database = "syslog.sqlite3"
