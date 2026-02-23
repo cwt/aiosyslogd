@@ -176,13 +176,12 @@ These options control the main syslog server behavior:
 
 These options control how messages are stored:
 
-| Key              | Description                                                              | Default  |
-| :--------------- | :----------------------------------------------------------------------- | :------- |
-| driver           | The database backend to use ("sqlite" or "meilisearch").                 | "sqlite" |
-| batch_size       | The number of messages to batch together before writing to the database. | 100      |
-| batch_timeout    | The maximum time in seconds to wait before writing an incomplete batch.  | 5        |
-| sql_dump         | Set to true to print the SQLite command and parameters before execution. | false    |
-| retention_months | Number of months to retain old database files (SQLite only).             | 12       |
+| Key           | Description                                                              | Default  |
+| :------------ | :----------------------------------------------------------------------- | :------- |
+| driver        | The database backend to use ("sqlite" or "meilisearch").                 | "sqlite" |
+| batch_size    | The number of messages to batch together before writing to the database. | 100      |
+| batch_timeout | The maximum time in seconds to wait before writing an incomplete batch.  | 5        |
+| sql_dump      | Set to true to print the SQLite command and parameters before execution. | false    |
 
 **Note:** When `sql_dump` is enabled, `log_dump` will be automatically disabled.
 
@@ -190,9 +189,10 @@ These options control how messages are stored:
 
 Specific settings for SQLite backend:
 
-| Key      | Description                           | Default          |
-| :------- | :------------------------------------ | :--------------- |
-| database | The path to the SQLite database file. | "syslog.sqlite3" |
+| Key              | Description                                                  | Default          |
+| :--------------- | :----------------------------------------------------------- | :--------------- |
+| database         | The path to the SQLite database file.                        | "syslog.sqlite3" |
+| retention_months | Number of months to retain old database files (SQLite only). | 12               |
 
 **Automatic Cleanup of Old Databases:**
 
@@ -202,6 +202,8 @@ The SQLite driver automatically deletes monthly database files older than the co
 - When switching to a new month's database file (at month boundaries)
 
 The number of monthly database files is counted, keeping only the most recent `retention_months` files. For example, with `retention_months = 12`, only the 12 most recent monthly database files are kept.
+
+**Note:** This includes the current month's file. If you want to retain the current month plus 11 older months, set `retention_months = 12`.
 
 To delete all old database files, set `retention_months = 0`.
 

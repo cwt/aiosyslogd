@@ -10,7 +10,6 @@ driver = "sqlite"
 batch_size = 100
 batch_timeout = 5
 sql_dump = false # Not applicable for Meilisearch
-retention_months = 12
 
 [web_server]
 bind_ip = "0.0.0.0"
@@ -21,6 +20,7 @@ users_file = "users.json"
 
 [database.sqlite]
 database = "syslog.sqlite3"
+retention_months = 12
 
 [database.meilisearch]
 url = "http://127.0.0.1:7700"

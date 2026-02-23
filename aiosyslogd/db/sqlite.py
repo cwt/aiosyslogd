@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 import aiosqlite
 import glob
+import operator
 import os
 from loguru import logger
 
@@ -69,19 +70,16 @@ class SQLiteDriver(BaseDatabase):
     async def cleanup_old_databases(self) -> None:
         """Deletes old database files, keeping only the most recent retention_months monthly files."""
         db_files = self._get_database_files()
-        # Exclude the current database file from deletion
-        all_monthly = [
-            (f, dt) for f, dt in db_files if f != self._current_db_path
-        ]
         if self.retention_months <= 0:
-            to_delete = all_monthly
+            to_delete = db_files
         else:
             # Sort by date descending (most recent first)
-            sorted_monthly = sorted(
-                all_monthly, key=lambda x: x[1], reverse=True
+            # itemgetter(1) extracts the datetime from (filepath, datetime) tuples
+            sorted_files = sorted(
+                db_files, key=operator.itemgetter(1), reverse=True
             )
             # Keep only the most recent retention_months
-            to_delete = sorted_monthly[self.retention_months :]
+            to_delete = sorted_files[self.retention_months :]
 
         deleted_count = 0
         for filepath, file_dt in to_delete:

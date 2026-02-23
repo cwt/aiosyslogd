@@ -19,9 +19,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "batch_size": 100,
         "batch_timeout": 5,
         "sql_dump": False,
-        "retention_months": 12,
         "sqlite": {
             "database": "syslog.sqlite3",
+            "retention_months": 12,
         },
         "meilisearch": {
             "url": "http://127.0.0.1:7700",
