@@ -290,7 +290,7 @@ To enable this feature:
 - Generated queries use proper FTS5 operators like AND, OR, NOT, phrase matching, and wildcards
 - API keys are stored in browser's localStorage and used for authentication
 - All API communication is secured with CSRF protection
-- Uses the new `google-genai` library (the `google-generativeai` library has been deprecated)
+- Uses the `google-genai` library for integrating with Google's Gemini API
 
 #### **Privacy Notice**
 

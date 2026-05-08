@@ -80,21 +80,14 @@ def is_gemini_available() -> bool:
     """Check if the gemini extra is available by checking for required modules."""
     try:
         # Check if google-genai module is available
-        return (
-            importlib.util.find_spec("google.genai") is not None
-            or importlib.util.find_spec("google.generativeai") is not None
-        )
+        return importlib.util.find_spec("google.genai") is not None
     except AttributeError:
         # If find_spec fails, try importing directly as fallback
         try:
             importlib.import_module("google.genai")
             return True
         except ImportError:
-            try:
-                importlib.import_module("google.generativeai")
-                return True
-            except ImportError:
-                return False
+            return False
 
 
 @app.before_request
@@ -494,9 +487,9 @@ async def gemini_search():
 
             # Try the models in order of preference
             model_names = [
-                "gemma-3-27b-it",
-                "gemini-2.5-pro",
-                "gemini-2.5-flash",
+                "gemma-4-26b-a4b-it",
+                "gemini-pro-latest",
+                "gemini-flash-latest",
             ]
 
             response = None
@@ -516,27 +509,14 @@ async def gemini_search():
                 response.text.strip()
             )  # Keep any necessary quotes for FTS5 syntax
         except ImportError:
-            # Fallback to old library
-            try:
-                import google.generativeai as genai_old  # type: ignore[import-untyped]
-
-                # Use the old API
-                genai_old.configure(api_key=api_key)
-                model = genai_old.GenerativeModel("gemini-pro")
-
-                response = model.generate_content(prompt)
-                fts5_query = (
-                    response.text.strip()
-                )  # Keep any necessary quotes for FTS5 syntax
-            except ImportError:
-                return (
-                    jsonify(
-                        {
-                            "error": "Google Gen AI library not installed. Run: poetry install -E gemini"
-                        }
-                    ),
-                    500,
-                )
+            return (
+                jsonify(
+                    {
+                        "error": "Google Gen AI library not installed. Run: poetry install -E gemini"
+                    }
+                ),
+                500,
+            )
 
         return jsonify({"fts5_query": fts5_query})
 
