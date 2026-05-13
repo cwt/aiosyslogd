@@ -22,8 +22,8 @@ speed = [
     "winloop (>=0.1.8,<0.2.0) ; sys_platform == \"win32\""
 ]
 gemini = [
-    "google-genai (>=1.0.0)",
-    "requests (>=2.31.0)"
+    "google-genai (>=2.2.0)",
+    "requests (>=2.34.0)"
 ]
 
 [tool.poetry]
@@ -38,7 +38,7 @@ aiosyslogd = "aiosyslogd.server:main"
 aiosyslogd-web = "aiosyslogd.web:main"
 
 [tool.poetry.group.dev.dependencies]
-mypy = "^1.15.0"
+mypy = "^2.1.0"
 black = "^26.3.1"
 ruff = "^0.15.0"
 pytest = "^9.0.0"
