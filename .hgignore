@@ -4,6 +4,7 @@ syntax: glob
 .mypy_cache
 .pytest_cache
 .ruff_cache
+.antigravitycli
 dist
 aiosyslogd.toml
 syslog*.db
