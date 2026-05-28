@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 # aiosyslogd/web.py
 
+from .activity import run_activity_report
+from .activity.parsers import get_activity_parser
 from .config import load_config
 from .auth import AuthManager
 from .db.logs_utils import redact
@@ -391,6 +393,104 @@ async def profile():
                 await flash(message, "error")
         return redirect(url_for("profile"))
     return await render_template("profile.html")
+
+
+@app.route("/activity")
+@login_required
+async def activity():
+    context: Dict[str, Any] = {
+        "request": request,
+        "available_dbs": await get_available_databases(CFG),
+        "search_query": request.args.get("q", "").strip(),
+        "filters": {
+            key: request.args.get(key, "").strip()
+            for key in ["from_host", "received_at_min", "received_at_max"]
+        },
+        "selected_db": None,
+        "report": None,
+        "error": None,
+    }
+
+    if not context["available_dbs"]:
+        context["error"] = (
+            "No SQLite database files found. "
+            "Ensure `aiosyslogd` has run and created logs."
+        )
+        return await render_template("activity.html", **context)
+
+    selected_db = request.args.get("db_file", context["available_dbs"][0])
+    if selected_db not in context["available_dbs"]:
+        abort(404, "Database file not found.")
+    context["selected_db"] = selected_db
+
+    if request.args.get("q"):
+        parser = get_activity_parser(
+            CFG.get("activity", {}).get("parser", "fortios")
+        )
+        report = await run_activity_report(
+            db_path=selected_db,
+            search_query=context["search_query"],
+            filters=context["filters"],
+            parser=parser,
+        )
+        context["report"] = report
+        if report.error:
+            context["error"] = report.error
+
+    return await render_template("activity.html", **context)
+
+
+@app.route("/api/activity")
+@login_required
+async def api_activity():
+    search_query = request.args.get("q", "").strip()
+    if not search_query:
+        return jsonify({"error": "Missing 'q' parameter (FTS5 query)."}), 400
+
+    filters = {
+        key: request.args.get(key, "").strip()
+        for key in ["from_host", "received_at_min", "received_at_max"]
+    }
+    selected_db = request.args.get("db_file")
+    if not selected_db:
+        return jsonify({"error": "Missing 'db_file' parameter."}), 400
+
+    report = await run_activity_report(
+        db_path=selected_db,
+        search_query=search_query,
+        filters=filters,
+        parser=get_activity_parser(
+            CFG.get("activity", {}).get("parser", "fortios")
+        ),
+    )
+
+    return jsonify(
+        {
+            "timeframe": report.timeframe,
+            "total_window_minutes": report.total_window_minutes,
+            "total_logs": report.total_logs,
+            "query_time": round(report.query_time, 3),
+            "users": [
+                {
+                    "user": u.user,
+                    "appcats": [
+                        {
+                            "appcat": g.appcat,
+                            "total_minutes": g.total_minutes,
+                            "apps": [
+                                {"app": a.app, "minutes": a.minutes}
+                                for a in g.apps
+                            ],
+                        }
+                        for g in u.appcats
+                    ],
+                    "total_minutes": u.total_minutes,
+                }
+                for u in report.users
+            ],
+            "error": report.error,
+        }
+    )
 
 
 @app.route("/api/check-gemini-auth")

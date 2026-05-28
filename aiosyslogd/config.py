@@ -37,6 +37,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "redact": False,
         "users_file": "users.json",
     },
+    "activity": {
+        "parser": "fortios",
+    },
 }
 
 DEFAULT_CONFIG_FILENAME = "aiosyslogd.toml"
@@ -47,6 +50,8 @@ logger.add(
     format="[{time:YYYY-MM-DD HH:mm:ss ZZ}] [{process}] [{level}] {message}",
     level="INFO",  # Since this is a library, we default to INFO level logging.
 )
+
+_CONFIG_CACHE: Dict[str, Any] | None = None
 
 
 def _create_default_config(path: str) -> Dict[str, Any]:
@@ -72,7 +77,14 @@ def load_config() -> Dict[str, Any]:
       the server will exit with an error.
     - If the default file ('aiosyslogd.toml') doesn't exist,
       it will be created automatically.
+
+    The result is cached; subsequent calls return the cached config without re-reading
+    the file or re-logging the load message.
     """
+    global _CONFIG_CACHE
+    if _CONFIG_CACHE is not None:
+        return _CONFIG_CACHE
+
     config_path_from_env: str | None = os.environ.get("AIOSYSLOGD_CONFIG")
 
     if config_path_from_env:
@@ -86,10 +98,9 @@ def load_config() -> Dict[str, Any]:
 
     try:
         with open(config_path, "r") as f:
-            return toml.load(f)
+            _CONFIG_CACHE = toml.load(f)
     except FileNotFoundError:
         if is_custom_path:
-            # If a custom path was provided and it doesn't exist, it's an error.
             logger.error(
                 f"Configuration file not found at the specified path: {config_path}"
             )
@@ -97,8 +108,8 @@ def load_config() -> Dict[str, Any]:
                 "Aborting: Could not find the specified configuration file."
             )
         else:
-            # If the default file is not found, create it.
-            return _create_default_config(config_path)
+            _CONFIG_CACHE = _create_default_config(config_path)
     except toml.TomlDecodeError as e:
         logger.error(f"Error decoding TOML file {config_path}: {e}")
         raise SystemExit("Aborting due to invalid configuration file.")
+    return _CONFIG_CACHE

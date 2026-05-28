@@ -1,6 +1,6 @@
 [project]
 name = "aiosyslogd"
-version = "1.4.0"
+version = "1.5.0"
 description = "Asynchronous Syslog server using asyncio, with an optional uvloop integration and SQLite backend."
 authors = [
     {name = "Chaiwat Suttipongsakul",email = "cwt@bashell.com"}
@@ -13,7 +13,8 @@ dependencies = [
     "meilisearch-python-sdk (>=4.7.0)",
     "toml (>=0.10.2)",
     "quart (>=0.20.0)",
-    "loguru (>=0.7.2)"
+    "loguru (>=0.7.2)",
+    "prettytable (>=3.17.0,<4.0.0)"
 ]
 
 [project.optional-dependencies]
@@ -36,6 +37,7 @@ repository = "https://github.com/cwt/aiosyslogd"
 [tool.poetry.scripts]
 aiosyslogd = "aiosyslogd.server:main"
 aiosyslogd-web = "aiosyslogd.web:main"
+aiosyslogd-activity = "aiosyslogd.cli_activity:main"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^2.1.0"

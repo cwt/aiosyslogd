@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}User Activity Report - aiosyslogd{% endblock %}
+
+{% block content %}
+<header class="text-center mb-4">
+    <h1 class="text-4xl font-bold text-gray-700">User Activity Report</h1>
+    <p class="text-gray-500">Analyze per-user per-app activity within a timeframe</p>
+</header>
+
+<form action="{{ url_for('activity') }}" method="get" class="bg-white p-4 rounded-lg shadow-sm mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="mb-3">
+        <label for="db_file" class="form-label">Database File</label>
+        <select name="db_file" id="db_file" class="form-select" onchange="this.form.submit()">
+            {% for db in available_dbs %}
+            <option value="{{ db }}" {% if db == selected_db %}selected{% endif %}>{{ db }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="input-group mb-3">
+        <input type="text" name="q" value="{{ search_query }}" placeholder="FTS5 query (e.g., 'app:YouTube OR app:Facebook')" class="form-control form-control-lg">
+        <button type="submit" class="btn btn-primary">Analyze</button>
+    </div>
+
+    <p class="text-muted small">
+        <strong>Methodology:</strong> Messages matching the FTS5 query are bucketed by minute per user/appcat/app.
+        Active minutes = distinct 1-minute buckets with matching traffic. Grouped by <code>appcat</code> with per-app breakdown.
+        Only authenticated users (<code>user="..."</code>) are included.
+    </p>
+
+    <div class="row g-3 border-top pt-3">
+        <div class="col-md-6">
+            <label for="received_at_min" class="form-label">Received At (Start)</label>
+            <input type="datetime-local" name="received_at_min" id="received_at_min" value="{{ filters.received_at_min or '' }}" class="form-control">
+        </div>
+        <div class="col-md-6">
+            <label for="received_at_max" class="form-label">Received At (End)</label>
+            <input type="datetime-local" name="received_at_max" id="received_at_max" value="{{ filters.received_at_max or '' }}" class="form-control">
+        </div>
+    </div>
+</form>
+
+{% if error %}
+<div class="alert alert-danger" role="alert">
+    <strong class="fw-bold">Error:</strong> {{ error }}
+</div>
+{% endif %}
+
+{% if report %}
+<div class="mb-3 text-muted">
+    Found
+    <span class="fw-bold">{{ "{:,}".format(report.total_logs) }}</span>
+    matching logs in
+    <span class="fw-bold">{{ "%.3f"|format(report.query_time) }}s</span>.
+    Window:
+    <span class="fw-bold">{{ report.total_window_minutes }}</span> min.
+</div>
+
+{% if report.users %}
+<div class="table-responsive">
+    <table class="table table-striped table-sm">
+        <thead>
+            <tr>
+                <th style="width: 18%">User</th>
+                <th>Activity Breakdown</th>
+                <th class="text-end" style="width: 10%">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for u in report.users %}
+            <tr>
+                <td class="fw-bold align-top">{{ u.user }}</td>
+                <td>
+                    {% for g in u.appcats %}
+                    <div class="mb-2">
+                        <span class="badge bg-secondary">{{ g.appcat }}</span>
+                        <strong>{{ g.total_minutes }}m</strong>
+                        <span class="text-muted small ms-2">
+                            {% for a in g.apps %}
+                            {{ a.app }}({{ a.minutes }}){% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </td>
+                <td class="text-end align-top fw-bold">{{ u.total_minutes }} / {{ report.total_window_minutes }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-5 bg-light rounded">
+    <p class="text-muted">No matching activity found. Try adjusting your query or timeframe.</p>
+</div>
+{% endif %}
+{% elif not error %}
+<div class="text-center py-5 bg-light rounded">
+    <p class="text-muted">Enter an FTS5 query and time range, then click <strong>Analyze</strong>.</p>
+</div>
+{% endif %}
+{% endblock %}

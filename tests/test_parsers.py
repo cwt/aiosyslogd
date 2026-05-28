@@ -93,8 +93,11 @@ class TestRfc5424Conversion:
 
     @patch("aiosyslogd.rfc5424.datetime")
     def test_rfc3164_timestamp_conversion_past(self, mock_datetime):
+        def make_datetime(*args, **kw):
+            return datetime(*args, **kw)
+
         mock_datetime.now.return_value = datetime(2025, 1, 15)
-        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+        mock_datetime.side_effect = make_datetime
         rfc3164_msg = "<34>Dec 10 22:14:15 mymachine su: test"
         normalized = convert_rfc3164_to_rfc5424(rfc3164_msg)
         assert "2024-12-10T" in normalized

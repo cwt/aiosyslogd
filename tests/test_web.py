@@ -858,9 +858,10 @@ async def test_user_management_routes(client):
         assert response.status_code == 200
 
         # Edit User GET Not Found
-        mock_auth.get_user.side_effect = lambda u: (
-            mock_user if u == "admin" else None
-        )
+        def mock_get_user(u):
+            return mock_user if u == "admin" else None
+
+        mock_auth.get_user.side_effect = mock_get_user
         response = await client.get("/users/edit/ghost")
         assert response.status_code == 404
 

@@ -2,6 +2,8 @@ from unittest.mock import patch, mock_open, MagicMock
 import pytest
 import toml
 
+import aiosyslogd.config as _config_module
+
 # --- Import the module and constants to be tested ---
 from aiosyslogd.config import (
     load_config,
@@ -13,6 +15,9 @@ from aiosyslogd.config import (
 
 class TestConfigLoading:
     """Tests for the configuration loading logic in aiosyslogd.config."""
+
+    def setup_method(self):
+        _config_module._CONFIG_CACHE = None
 
     @patch("aiosyslogd.config.os.environ.get", return_value=None)
     @patch("aiosyslogd.config.open", new_callable=mock_open)

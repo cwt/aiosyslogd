@@ -19,6 +19,7 @@ It features an optional integration with uvloop for a significant performance bo
 - **RFC5424 Conversion:** Includes a utility to convert older *RFC3164* formatted messages to the modern *RFC5424* format.
 - **Flexible Configuration:** Configure the server via a simple aiosyslogd.toml file.
 - **Web UI:** A simple web interface for monitoring and searching logs, accessible via a web browser.
+- **User Activity Analysis:** Per-user per-app activity reporting with minute-level granularity, available via Web UI and CLI. Supports pluggable log-format parsers (FortiOS built-in).
 - **Container Support:** Pre-built Docker/Podman images for easy deployment.
 
 ## **Running with Containers (Docker / Podman)**
@@ -146,6 +147,9 @@ database = "syslog.sqlite3"
 [database.meilisearch]
 url = "http://127.0.0.1:7700"
 api_key = ""
+
+[activity]
+parser = "fortios"
 ```
 
 #### **Custom Configuration Path**
@@ -229,6 +233,16 @@ These options control the web interface:
 | debug      | Set to true to enable verbose logging for the web server.    | false        |
 | redact     | Set to true to redact sensitive information (user, IP, MAC). | false        |
 | users_file | The path to the JSON file for storing user credentials.      | "users.json" |
+
+#### **Activity Settings**
+
+These options control the user activity analysis feature:
+
+| Key    | Description                                                         | Default    |
+| :----- | :------------------------------------------------------------------ | :--------- |
+| parser | The log-format parser for extracting app/user/appcat from messages. | "fortios"  |
+
+See [User Activity Analysis](#user-activity-analysis) for details on the parser system.
 
 ### **Web Interface Authentication**
 
@@ -317,6 +331,85 @@ Admins can access the "Users" page from the navigation bar to:
 #### **Changing Your Password**
 
 All users can change their own password by clicking on their username in the navigation bar and selecting "Profile".
+
+### **User Activity Analysis**
+
+The activity report analyzes per-user per-app activity within a given timeframe. It groups log messages by `appcat` (application category) with per-`app` breakdowns and counts distinct active minutes for each `(user, appcat, app)` combination.
+
+#### **Web UI**
+
+Access the activity report at `/activity` in the web interface. The page provides:
+
+- **FTS5 Query:** A full-text search query to filter messages. The activity engine automatically adds `AND "user"` to include only authenticated-user messages.
+- **Time Range:** Start and end datetime-local inputs to narrow the analysis window.
+- **Database Selection:** Choose which monthly database file to query.
+
+The report displays a table of users sorted by total active minutes, with each user's activity broken down by category and application.
+
+#### **CLI Tool**
+
+The `aiosyslogd-activity` CLI provides the same analysis engine from the terminal:
+
+```bash
+aiosyslogd-activity -d syslog_202604.sqlite3 \
+  -q 'app:YouTube OR app:Facebook' \
+  --from "2026-04-15 00:00" --to "2026-04-15 23:59" \
+  --parser fortios
+```
+
+| Flag        | Description                                             |
+| :---------- | :------------------------------------------------------ |
+| `-d`, `--db`   | Path to the SQLite database file (required).         |
+| `-q`, `--query`| FTS5 search query for the Message column (required). |
+| `--from`       | Start of time range, `YYYY-MM-DD [HH:MM]` format.    |
+| `--to`         | End of time range, `YYYY-MM-DD [HH:MM]` format.      |
+| `--parser`     | Override the log-format parser (default from config). |
+
+#### **Configuration**
+
+The `[activity]` section in `aiosyslogd.toml` selects the log-format parser:
+
+```toml
+[activity]
+parser = "fortios"
+```
+
+#### **Parser System**
+
+Activity parsers extract `user`, `app`, and `appcat` fields from log message bodies. The system is designed to be extensible for different log formats.
+
+**Built-in parsers:**
+
+| Parser    | Description                                                         |
+| :-------- | :------------------------------------------------------------------ |
+| `fortios` | Extracts `app="..."`, `user="..."`, and `appcat="..."` kv-pairs from FortiOS CEF-style log messages. |
+
+**Adding a custom parser:**
+
+1. Create a module in `aiosyslogd/activity/parsers/` that implements `BaseActivityParser.extract()`:
+
+```python
+from aiosyslogd.activity.parsers import BaseActivityParser, ParsedActivity
+
+class MyParser(BaseActivityParser):
+    def extract(self, message: str) -> Optional[ParsedActivity]:
+        # Parse message and return ParsedActivity(app=..., user=..., appcat=...)
+        # or None if the message doesn't match this format
+        ...
+```
+
+2. Register it in `aiosyslogd/activity/parsers/__init__.py`:
+
+```python
+from .myparser import MyParser
+
+_ACTIVITY_PARSERS = {
+    "fortios": FortiOSParser,
+    "myformat": MyParser,
+}
+```
+
+3. Set `parser = "myformat"` in `[activity]` section of `aiosyslogd.toml`.
 
 ### **Performance Tuning: Finding the Optimal batch_size**
 
