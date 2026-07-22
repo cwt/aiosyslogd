@@ -23,7 +23,8 @@ class TestSyslogMatrix:
     """Tests for the SyslogMatrix priority decoder."""
 
     @pytest.fixture(scope="class")
-    def matrix(self):
+    @classmethod
+    def matrix(cls):
         """Provide a single SyslogMatrix instance for all tests in this class."""
         return SyslogMatrix()
 
