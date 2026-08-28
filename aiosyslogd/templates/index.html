@@ -15,6 +15,13 @@
         border-radius: 4px;
         font-weight: 500;
     }
+    .log-message-cell {
+        font-family: var(--bs-font-monospace);
+        font-size: 0.875rem;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+    }
 </style>
 {% endblock %}
 
@@ -125,7 +132,7 @@
                 <td>{{ log.ID }}</td>
                 <td>{{ log.ReceivedAt.strftime("%Y-%m-%d %H:%M:%S") }}</td>
                 <td>{{ log.FromHost }}</td>
-                <td class="log-message-cell" style="word-break: break-all;">{{ log.Message }}</td>
+                <td class="log-message-cell">{{ log.Message }}</td>
             </tr>
             {% endfor %}
         </tbody>
