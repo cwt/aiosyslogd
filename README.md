@@ -18,7 +18,7 @@ It features an optional integration with uvloop for a significant performance bo
 - **Full-Text Search:** Automatically maintains an FTS5 virtual table (SystemEvents_FTS) for SQLite or fully indexed Meilisearch backend for powerful and fast message searching.
 - **RFC5424 Conversion:** Includes a utility to convert older *RFC3164* formatted messages to the modern *RFC5424* format.
 - **Flexible Configuration:** Configure the server via a simple aiosyslogd.toml file.
-- **Web UI:** A simple web interface for monitoring and searching logs, accessible via a web browser.
+- **Web UI:** An accessible web interface for monitoring and searching logs, featuring dark mode support, monospace log inspection, and role-based user management.
 - **User Activity Analysis:** Per-user per-app activity reporting with minute-level granularity, available via Web UI and CLI. Supports pluggable log-format parsers (FortiOS built-in).
 - **Container Support:** Pre-built Docker/Podman images for easy deployment.
 
@@ -31,7 +31,7 @@ The most convenient way to run **aiosyslogd** is by using the pre-built containe
 The container images are automatically built from the GitHub repository:
 
 - Pushes to the `main` branch will build the `quay.io/cwt/aiosyslogd:latest` image.
-- New version tags (e.g., `v0.2.5`) will automatically build a corresponding image (`quay.io/cwt/aiosyslogd:v0.2.5`).
+- New version tags (e.g., `v1.6.0`) will automatically build a corresponding image (`quay.io/cwt/aiosyslogd:v1.6.0`).
 
 ### **Quick Start with Containers**
 
@@ -102,6 +102,14 @@ To include the performance enhancements, install the speed extra:
 pip install 'aiosyslogd[speed]'
 ```
 
+**For Gemini Natural Language Search:**
+
+To enable natural language to FTS5 query conversion in the Web UI:
+
+```bash
+pip install 'aiosyslogd[gemini]'
+```
+
 ## **Quick Start: Running the Server**
 
 The package installs a command-line script called `aiosyslogd`. You can run it directly from your terminal.
@@ -130,23 +138,29 @@ debug = false
 log_dump = false
 
 [database]
+# Driver can be "sqlite", or "meilisearch"
 driver = "sqlite"
 batch_size = 100
 batch_timeout = 5
-sql_dump = false
 
 [web_server]
 bind_ip = "0.0.0.0"
 bind_port = 5141
 debug = false
 redact = false
+users_file = "users.json"
 
 [database.sqlite]
 database = "syslog.sqlite3"
+retention_months = 12
+sql_dump = false
+debug = false
 
 [database.meilisearch]
 url = "http://127.0.0.1:7700"
+# Set an API key if you have one configured for Meilisearch
 api_key = ""
+debug = false
 
 [activity]
 parser = "fortios"
@@ -265,7 +279,7 @@ The web interface includes an optional Gemini-powered natural language search fe
 
 To enable this feature:
 
-1. Install the gemini extra: `poetry install --extras "gemini"`
+1. Install the gemini extra: `pip install 'aiosyslogd[gemini]'` (or `poetry install --extras "gemini"`)
 
 **Note**: If you choose not to install the gemini extra, the Gemini button and related UI elements will be automatically hidden from the web interface. The rest of the web UI functionality remains available.
 
@@ -303,7 +317,7 @@ To enable this feature:
 - The feature integrates with Google's Gemini API to convert natural language to FTS5 syntax
 - Generated queries use proper FTS5 operators like AND, OR, NOT, phrase matching, and wildcards
 - API keys are stored in browser's localStorage and used for authentication
-- All API communication is secured with CSRF protection
+- All API communication is secured with CSRF protection (`X-CSRF-Token` headers)
 - Uses the `google-genai` library for integrating with Google's Gemini API
 
 #### **Privacy Notice**
@@ -313,24 +327,30 @@ To enable this feature:
 - This ensures usage counts against your own quota
 - No logs or search history are stored on the aiosyslogd server as part of this feature
 
-#### **User Roles**
+### **Web Interface Features & Customization**
+
+#### **Dark Mode Support**
+
+The web interface features full dark mode support using Bootstrap color modes. You can toggle between light and dark themes using the theme switcher button located in the top navigation bar. Your theme preference is preserved across page navigations.
+
+#### **User Roles & Management**
 
 There are two user roles:
 
 - **Admin**: Can view logs, manage users (add, edit, delete), and change their own password.
 - **User**: Can view logs and change their own password.
 
-#### **Managing Users (Admins only)**
+**Managing Users (Admins only):**
 
 Admins can access the "Users" page from the navigation bar to:
 
-- **Add new users**: Provide a username, password, and specify if the user should be an admin.
-- **Edit existing users**: Change a user's password, admin status, and enable/disable their account.
-- **Delete users**: Remove a user from the system.
+- **Add new users**: Provide a username, password with confirmation, and specify if the user should have admin privileges.
+- **Edit existing users**: Update a user's password, toggle admin privileges or active status using interactive switches.
+- **Delete users**: Remove a user from the system (with safeguards preventing self-lockout/demotion).
 
-#### **Changing Your Password**
+**Changing Your Password:**
 
-All users can change their own password by clicking on their username in the navigation bar and selecting "Profile".
+All users can change their own password with confirmation validation by clicking on their username in the navigation bar and selecting "Profile".
 
 ### **User Activity Analysis**
 
