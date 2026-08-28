@@ -64,8 +64,6 @@ app: Quart = Quart(__name__)
 app.secret_key = os.urandom(24)
 # Enable the 'do' extension for Jinja2.
 app.jinja_env.add_extension("jinja2.ext.do")
-# Replace the default Quart logger with loguru logger.
-app.logger = logger  # type: ignore[assignment]
 auth_manager = AuthManager(WEB_SERVER_CFG.get("users_file", "users.json"))
 
 
@@ -224,7 +222,7 @@ async def logout():
 @app.before_serving
 async def startup() -> None:
     """Initial setup before serving requests."""
-    app.logger.info(  # Verify the event loop policy being used.
+    logger.info(  # Verify the event loop policy being used.
         f"{__name__.title()} is running with "
         f"{asyncio.get_running_loop().__class__.__module__}."
     )
@@ -557,7 +555,7 @@ async def clear_gemini_key():
         return jsonify({"success": True})
 
     except Exception as e:
-        app.logger.error(f"Error handling Gemini API key clear: {str(e)}")
+        logger.error(f"Error handling Gemini API key clear: {str(e)}")
         return (
             jsonify({"error": f"Error handling API key clear: {str(e)}"}),
             500,
@@ -581,7 +579,7 @@ async def save_gemini_key():
         return jsonify({"success": True})
 
     except Exception as e:
-        app.logger.error(f"Error handling Gemini API key save: {str(e)}")
+        logger.error(f"Error handling Gemini API key save: {str(e)}")
         return jsonify({"error": f"Error handling API key: {str(e)}"}), 500
 
 
@@ -664,7 +662,7 @@ async def gemini_search():
         return jsonify({"fts5_query": fts5_query})
 
     except Exception as e:
-        app.logger.error(f"Gemini API error: {str(e)}")
+        logger.error(f"Gemini API error: {str(e)}")
         return jsonify({"error": f"Error processing request: {str(e)}"}), 500
 
 
