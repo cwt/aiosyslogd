@@ -24,14 +24,14 @@
                 <ul class="navbar-nav me-auto mb-2 mb-md-0">
                     {% if current_user %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+                            <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" {% if request.endpoint == 'index' %}aria-current="page"{% endif %} href="{{ url_for('index') }}">Home</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('activity') }}">Activity</a>
+                            <a class="nav-link {% if request.endpoint == 'activity' %}active{% endif %}" {% if request.endpoint == 'activity' %}aria-current="page"{% endif %} href="{{ url_for('activity') }}">Activity</a>
                         </li>
                         {% if current_user.is_admin %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('list_users') }}">Users</a>
+                            <a class="nav-link {% if request.endpoint in ['list_users', 'add_user', 'edit_user'] %}active{% endif %}" {% if request.endpoint in ['list_users', 'add_user', 'edit_user'] %}aria-current="page"{% endif %} href="{{ url_for('list_users') }}">Users</a>
                         </li>
                         {% endif %}
                     {% endif %}
@@ -39,18 +39,18 @@
                 <ul class="navbar-nav ms-auto mb-2 mb-md-0">
                     {% if current_user %}
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <a class="nav-link dropdown-toggle {% if request.endpoint == 'profile' %}active{% endif %}" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 {{ current_user.username }}
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
-                                <li><a class="dropdown-item" href="{{ url_for('profile') }}">Profile</a></li>
+                                <li><a class="dropdown-item {% if request.endpoint == 'profile' %}active{% endif %}" href="{{ url_for('profile') }}">Profile</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
                             </ul>
                         </li>
                     {% else %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+                            <a class="nav-link {% if request.endpoint == 'login' %}active{% endif %}" {% if request.endpoint == 'login' %}aria-current="page"{% endif %} href="{{ url_for('login') }}">Login</a>
                         </li>
                     {% endif %}
                 </ul>
