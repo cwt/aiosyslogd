@@ -37,6 +37,7 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body>
+    <a class="visually-hidden-focusable btn btn-primary position-absolute top-0 start-0 m-2" href="#main-content" style="z-index: 1050;">Skip to main content</a>
     <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
         <div class="container-fluid">
             <a class="navbar-brand" href="{{ url_for('index') }}">aiosyslogd</a>
@@ -91,7 +92,7 @@
         </div>
     </nav>
 
-    <main class="container">
+    <main class="container" id="main-content">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
