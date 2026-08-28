@@ -39,21 +39,27 @@
             </div>
         </div>
     </div>
-    {% endif %}
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const apiKeyInput = document.getElementById('gemini-api-key');
+            const saveBtn = document.getElementById('save-gemini-key');
+            const clearBtn = document.getElementById('clear-gemini-key');
+            const statusDiv = document.getElementById('gemini-status');
+
+            if (!apiKeyInput || !saveBtn || !clearBtn || !statusDiv) {
+                return;
+            }
+
             // Load saved API key from localStorage if it exists
             const savedApiKey = localStorage.getItem('gemini_api_key');
             if (savedApiKey) {
-                document.getElementById('gemini-api-key').placeholder = '••••••••••••••••••••';
+                apiKeyInput.placeholder = '••••••••••••••••••••';
             }
             
             // Save API key button handler
-            document.getElementById('save-gemini-key').addEventListener('click', async function() {
-                const apiKeyInput = document.getElementById('gemini-api-key');
+            saveBtn.addEventListener('click', async function() {
                 const apiKey = apiKeyInput.value.trim();
-                const statusDiv = document.getElementById('gemini-status');
                 
                 if (!apiKey) {
                     statusDiv.innerHTML = '<div class="alert alert-warning">Please enter your Gemini API key.</div>';
@@ -67,11 +73,12 @@
                     localStorage.setItem('gemini_authenticated', 'true');
                     
                     // Send to server to confirm save (API key only stored in browser)
+                    const csrfTokenEl = document.querySelector('[name="csrf_token"]');
                     const resp = await fetch('/api/save-gemini-key', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-Token': document.querySelector('[name="csrf_token"]').value || ''
+                            'X-CSRF-Token': csrfTokenEl ? csrfTokenEl.value : ''
                         },
                         body: JSON.stringify({api_key: apiKey})
                     });
@@ -100,7 +107,7 @@
             });
             
             // Clear API key button handler
-            document.getElementById('clear-gemini-key').addEventListener('click', async function() {
+            clearBtn.addEventListener('click', async function() {
                 if (!confirm('Are you sure you want to clear your Gemini API key? You will need to enter it again to use the Gemini feature.')) {
                     return;
                 }
@@ -111,11 +118,12 @@
                     localStorage.removeItem('gemini_authenticated');
                     
                     // Send to server to confirm clear (API key only stored in browser)
+                    const csrfTokenEl = document.querySelector('[name="csrf_token"]');
                     const resp = await fetch('/api/clear-gemini-key', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-Token': document.querySelector('[name="csrf_token"]').value || ''
+                            'X-CSRF-Token': csrfTokenEl ? csrfTokenEl.value : ''
                         },
                         body: JSON.stringify({})
                     });
@@ -124,10 +132,9 @@
                     
                     if (resp.ok) {
                         // Update UI
-                        document.getElementById('gemini-api-key').value = '';
-                        document.getElementById('gemini-api-key').placeholder = 'Enter your Gemini API key';
+                        apiKeyInput.value = '';
+                        apiKeyInput.placeholder = 'Enter your Gemini API key';
                         
-                        const statusDiv = document.getElementById('gemini-status');
                         statusDiv.innerHTML = '<div class="alert alert-success">API key cleared successfully!</div>';
                         statusDiv.style.display = 'block';
                         
@@ -135,16 +142,15 @@
                             statusDiv.style.display = 'none';
                         }, 3000);
                     } else {
-                        const statusDiv = document.getElementById('gemini-status');
                         statusDiv.innerHTML = `<div class="alert alert-danger">Error: ${data.error || 'Failed to clear API key'}</div>`;
                         statusDiv.style.display = 'block';
                     }
                 } catch (error) {
-                    const statusDiv = document.getElementById('gemini-status');
                     statusDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
                     statusDiv.style.display = 'block';
                 }
             });
         });
     </script>
+    {% endif %}
 {% endblock %}

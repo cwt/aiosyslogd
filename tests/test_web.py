@@ -958,9 +958,19 @@ async def test_profile_route(client):
         mock_user.is_enabled = True
         mock_auth.get_user.return_value = mock_user
 
-        # GET
-        response = await client.get("/profile")
-        assert response.status_code == 200
+        # GET with Gemini disabled
+        with patch("aiosyslogd.web.is_gemini_available", return_value=False):
+            response = await client.get("/profile")
+            assert response.status_code == 200
+            html = await response.get_data(as_text=True)
+            assert "save-gemini-key" not in html
+
+        # GET with Gemini enabled
+        with patch("aiosyslogd.web.is_gemini_available", return_value=True):
+            response = await client.get("/profile")
+            assert response.status_code == 200
+            html = await response.get_data(as_text=True)
+            assert "save-gemini-key" in html
 
         # POST Success
         mock_auth.update_password.return_value = (True, "Success")
