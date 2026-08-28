@@ -469,6 +469,13 @@ async def api_activity():
     if not selected_db:
         return jsonify({"error": "Missing 'db_file' parameter."}), 400
 
+    available_dbs = await get_available_databases(CFG)
+    if selected_db not in available_dbs:
+        return (
+            jsonify({"error": "Database file not found or unauthorized."}),
+            404,
+        )
+
     report = await run_activity_report(
         db_path=selected_db,
         search_query=search_query,

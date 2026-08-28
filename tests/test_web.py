@@ -990,3 +990,56 @@ async def test_csrf_protection_enforcement(client):
                 assert response.status_code == 302
     finally:
         app.config.pop("TESTING_CSRF", None)
+
+
+@pytest.mark.asyncio
+async def test_api_activity_route_validation(client):
+    """
+    Tests /api/activity parameter validation including db_file authorization.
+    """
+    mock_user = MagicMock()
+    mock_user.is_enabled = True
+
+    with patch("aiosyslogd.web.auth_manager.get_user", return_value=mock_user):
+        async with client.session_transaction() as sess:
+            sess["username"] = "testuser"
+
+        # Missing 'q'
+        response = await client.get("/api/activity?db_file=syslog.sqlite3")
+        assert response.status_code == 400
+
+        # Missing 'db_file'
+        response = await client.get("/api/activity?q=fortinet")
+        assert response.status_code == 400
+
+        with patch(
+            "aiosyslogd.web.get_available_databases",
+            new_callable=AsyncMock,
+            return_value=["syslog.sqlite3"],
+        ):
+            # Unauthorized/unknown db_file
+            response = await client.get(
+                "/api/activity?q=fortinet&db_file=/etc/passwd"
+            )
+            assert response.status_code == 404
+
+            # Authorized db_file
+            mock_report = MagicMock()
+            mock_report.timeframe = {"start": "2026-01-01", "end": "2026-01-02"}
+            mock_report.total_window_minutes = 60
+            mock_report.total_logs = 10
+            mock_report.query_time = 0.05
+            mock_report.users = []
+            mock_report.error = None
+
+            with patch(
+                "aiosyslogd.web.run_activity_report",
+                new_callable=AsyncMock,
+                return_value=mock_report,
+            ):
+                response = await client.get(
+                    "/api/activity?q=fortinet&db_file=syslog.sqlite3"
+                )
+                assert response.status_code == 200
+                data = await response.get_json()
+                assert data["total_logs"] == 10
