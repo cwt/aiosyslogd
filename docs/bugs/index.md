@@ -43,7 +43,7 @@ This directory serves as the local tracking registry for defects and architectur
 | **025** | Upgrade User Form Checkboxes to Bootstrap 5 Switches | Improvement | UI / Forms | Low | Implemented | [025.md](./025.md) |
 | **026** | Add Dark Mode Color Scheme Support via Bootstrap 5.3+ | Improvement | CSS / Dark Mode | Low | Implemented | [026.md](./026.md) |
 | **027** | Add Accessibility Improvements (A11y, ARIA Labels, and Table Scopes) | Improvement | Accessibility / A11y | Low | Implemented | [027.md](./027.md) |
-| **028** | Add Subresource Integrity (SRI) Hashes to CDN Assets and Add Default Favicon | Improvement | Security / Assets | Low | Proposed | [028.md](./028.md) |
+| **028** | Add Subresource Integrity (SRI) Hashes to CDN Assets and Add Default Favicon | Improvement | Security / Assets | Low | Implemented | [028.md](./028.md) |
 
 ---
 
