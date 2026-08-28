@@ -73,12 +73,12 @@
                     localStorage.setItem('gemini_authenticated', 'true');
                     
                     // Send to server to confirm save (API key only stored in browser)
-                    const csrfTokenEl = document.querySelector('[name="csrf_token"]');
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.querySelector('[name="csrf_token"]')?.value || '';
                     const resp = await fetch('/api/save-gemini-key', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-Token': csrfTokenEl ? csrfTokenEl.value : ''
+                            'X-CSRF-Token': csrfToken
                         },
                         body: JSON.stringify({api_key: apiKey})
                     });
@@ -118,12 +118,12 @@
                     localStorage.removeItem('gemini_authenticated');
                     
                     // Send to server to confirm clear (API key only stored in browser)
-                    const csrfTokenEl = document.querySelector('[name="csrf_token"]');
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.querySelector('[name="csrf_token"]')?.value || '';
                     const resp = await fetch('/api/clear-gemini-key', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-Token': csrfTokenEl ? csrfTokenEl.value : ''
+                            'X-CSRF-Token': csrfToken
                         },
                         body: JSON.stringify({})
                     });

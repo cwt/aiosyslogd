@@ -9,8 +9,6 @@
 </header>
 
 <form action="{{ url_for('activity') }}" method="get" class="bg-white p-4 rounded-lg shadow-sm mb-4">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
     <div class="mb-3">
         <label for="db_file" class="form-label">Database File</label>
         <select name="db_file" id="db_file" class="form-select" onchange="this.form.submit()">

@@ -1126,3 +1126,57 @@ async def test_dynamic_highlighter_template_regex(client):
             assert (
                 "\\\\b${sanitizedKey}" in html or "\\b${sanitizedKey}" in html
             )
+
+
+@pytest.mark.asyncio
+async def test_get_forms_no_csrf_token_leakage(client):
+    """
+    Tests that GET search and filter forms do not include hidden csrf_token inputs.
+    """
+    mock_user = MagicMock()
+    mock_user.is_enabled = True
+
+    with patch("aiosyslogd.web.auth_manager.get_user", return_value=mock_user):
+        async with client.session_transaction() as sess:
+            sess["username"] = "testuser"
+
+        mock_result = {
+            "logs": [],
+            "total_logs": 0,
+            "page_info": {
+                "has_next": False,
+                "has_prev": False,
+                "first_id": None,
+                "last_id": None,
+            },
+            "debug_info": [],
+            "error": None,
+        }
+        with patch(
+            "aiosyslogd.web.get_available_databases",
+            new_callable=AsyncMock,
+            return_value=["syslog.sqlite3"],
+        ):
+            with patch(
+                "aiosyslogd.web.LogQuery.run",
+                new_callable=AsyncMock,
+                return_value=mock_result,
+            ):
+                # Index page GET form
+                res_index = await client.get("/")
+                assert res_index.status_code == 200
+                html_index = await res_index.get_data(as_text=True)
+                assert (
+                    '<input type="hidden" name="csrf_token"' not in html_index
+                )
+                assert '<meta name="csrf-token"' in html_index
+
+                # Activity page GET form
+                res_activity = await client.get("/activity")
+                assert res_activity.status_code == 200
+                html_activity = await res_activity.get_data(as_text=True)
+                assert (
+                    '<input type="hidden" name="csrf_token"'
+                    not in html_activity
+                )
+                assert '<meta name="csrf-token"' in html_activity
