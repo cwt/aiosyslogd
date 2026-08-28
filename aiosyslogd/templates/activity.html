@@ -4,11 +4,11 @@
 
 {% block content %}
 <header class="text-center mb-4">
-    <h1 class="text-4xl font-bold text-gray-700">User Activity Report</h1>
-    <p class="text-gray-500">Analyze per-user per-app activity within a timeframe</p>
+    <h1 class="display-6 fw-bold text-dark">User Activity Report</h1>
+    <p class="text-secondary">Analyze per-user per-app activity within a timeframe</p>
 </header>
 
-<form action="{{ url_for('activity') }}" method="get" class="bg-white p-4 rounded-lg shadow-sm mb-4">
+<form action="{{ url_for('activity') }}" method="get" class="bg-white p-4 rounded-3 shadow-sm mb-4">
     <div class="mb-3">
         <label for="db_file" class="form-label">Database File</label>
         <select name="db_file" id="db_file" class="form-select" onchange="this.form.submit()">

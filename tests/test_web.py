@@ -1197,3 +1197,50 @@ async def test_flash_error_alert_danger_class(client):
         html = await response.get_data(as_text=True)
         assert "alert-danger" in html
         assert "alert-error" not in html
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_classes_in_templates(client):
+    """
+    Tests that templates use Bootstrap 5 utility classes instead of Tailwind classes.
+    """
+    mock_user = MagicMock()
+    mock_user.is_enabled = True
+
+    with patch("aiosyslogd.web.auth_manager.get_user", return_value=mock_user):
+        async with client.session_transaction() as sess:
+            sess["username"] = "testuser"
+
+        mock_result = {
+            "logs": [],
+            "total_logs": 0,
+            "page_info": {
+                "has_next": False,
+                "has_prev": False,
+                "first_id": None,
+                "last_id": None,
+            },
+            "debug_info": [],
+            "error": None,
+        }
+        with patch(
+            "aiosyslogd.web.get_available_databases",
+            new_callable=AsyncMock,
+            return_value=["syslog.sqlite3"],
+        ):
+            with patch(
+                "aiosyslogd.web.LogQuery.run",
+                new_callable=AsyncMock,
+                return_value=mock_result,
+            ):
+                res_index = await client.get("/")
+                html_index = await res_index.get_data(as_text=True)
+                assert "text-4xl" not in html_index
+                assert "text-gray-" not in html_index
+                assert "rounded-lg" not in html_index
+
+                res_activity = await client.get("/activity")
+                html_activity = await res_activity.get_data(as_text=True)
+                assert "text-4xl" not in html_activity
+                assert "text-gray-" not in html_activity
+                assert "rounded-lg" not in html_activity
