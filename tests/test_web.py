@@ -1043,3 +1043,18 @@ async def test_api_activity_route_validation(client):
                 assert response.status_code == 200
                 data = await response.get_json()
                 assert data["total_logs"] == 10
+
+            # Error in report
+            error_report = MagicMock()
+            error_report.error = "fts5: syntax error"
+            with patch(
+                "aiosyslogd.web.run_activity_report",
+                new_callable=AsyncMock,
+                return_value=error_report,
+            ):
+                response = await client.get(
+                    "/api/activity?q=fortinet&db_file=syslog.sqlite3"
+                )
+                assert response.status_code == 400
+                data = await response.get_json()
+                assert "syntax error" in data["error"]

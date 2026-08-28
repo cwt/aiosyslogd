@@ -19,7 +19,7 @@ This directory serves as the local bug tracking registry for the `aiosyslogd` we
 | **001** | CSRF Protection Bypass via Content-Type Filtering | Python / Middleware | High | Fixed | [001.md](./001.md) |
 | **002** | Open Redirect Vulnerability on Login Endpoint | Python / Auth | High | Fixed | [002.md](./002.md) |
 | **003** | Arbitrary Database File Access in /api/activity | Python / API | High | Fixed | [003.md](./003.md) |
-| **004** | Unhandled OperationalError on Malformed FTS5 Query in Activity Module | Python / Database | Medium | Confirmed | [004.md](./004.md) |
+| **004** | Unhandled OperationalError on Malformed FTS5 Query in Activity Module | Python / Database | Medium | Fixed | [004.md](./004.md) |
 | **005** | Admin Self-Demotion and Self-Lockout in User Editing | Python / Auth | Medium | Confirmed | [005.md](./005.md) |
 | **006** | Fragile admin_required Decorator Missing User Verification | Python / Decorators | Medium | Confirmed (Latent) | [006.md](./006.md) |
 | **007** | Non-Atomic File Writes and User File Corruption in AuthManager | Python / Storage | Medium | Confirmed | [007.md](./007.md) |

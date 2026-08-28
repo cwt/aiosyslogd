@@ -287,3 +287,14 @@ class TestRunActivityReportFullScan:
         )
         totals = [u.total_minutes for u in report.users]
         assert totals == sorted(totals, reverse=True)
+
+    @pytest.mark.asyncio
+    async def test_malformed_fts5_query_returns_error_report(
+        self, populated_db
+    ):
+        report = await run_activity_report(
+            db_path=populated_db, search_query="app:YouTube OR", filters={}
+        )
+        assert report.error is not None
+        assert report.total_logs == 0
+        assert report.users == []

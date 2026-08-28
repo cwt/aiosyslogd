@@ -485,6 +485,9 @@ async def api_activity():
         ),
     )
 
+    if report.error:
+        return jsonify({"error": report.error}), 400
+
     return jsonify(
         {
             "timeframe": report.timeframe,
