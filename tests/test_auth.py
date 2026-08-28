@@ -24,16 +24,38 @@ def test_load_users_creates_default_if_missing(tmp_path):
 
 def test_load_users_handles_json_error(tmp_path):
     users_file = tmp_path / "users.json"
+    backup_file = tmp_path / "users.json.bak"
     with open(users_file, "w") as f:
         f.write("invalid json")
 
-    # Should log error and recreate file
+    # Should log error, create .bak backup, and recreate file
     with patch("aiosyslogd.auth.logger.error") as mock_log:
         manager = AuthManager(str(users_file))
         mock_log.assert_called()
 
+    assert os.path.exists(backup_file)
+    with open(backup_file, "r") as f:
+        assert f.read() == "invalid json"
+
     assert "admin" in manager.users
     assert manager.check_password("admin", "admin")
+
+
+def test_save_users_atomic(tmp_path):
+    users_file = tmp_path / "users.json"
+    manager = AuthManager(str(users_file))
+    manager.add_user("testuser", "securepass")
+
+    # File should exist, be valid JSON, and directory should not contain lingering temp files
+    assert os.path.exists(users_file)
+    import json
+
+    with open(users_file, "r") as f:
+        data = json.load(f)
+        assert "testuser" in data
+
+    files = os.listdir(tmp_path)
+    assert set(files) == {"users.json"}
 
 
 def test_add_user(auth_manager):

@@ -22,7 +22,7 @@ This directory serves as the local bug tracking registry for the `aiosyslogd` we
 | **004** | Unhandled OperationalError on Malformed FTS5 Query in Activity Module | Python / Database | Medium | Fixed | [004.md](./004.md) |
 | **005** | Admin Self-Demotion and Self-Lockout in User Editing | Python / Auth | Medium | Fixed | [005.md](./005.md) |
 | **006** | Fragile admin_required Decorator Missing User Verification | Python / Decorators | Medium | Fixed | [006.md](./006.md) |
-| **007** | Non-Atomic File Writes and User File Corruption in AuthManager | Python / Storage | Medium | Confirmed | [007.md](./007.md) |
+| **007** | Non-Atomic File Writes and User File Corruption in AuthManager | Python / Storage | Medium | Fixed | [007.md](./007.md) |
 | **008** | Uncaught Null Reference Crash on Profile Page when Gemini is Disabled | JavaScript / Profile | Medium | Confirmed | [008.md](./008.md) |
 | **009** | Regex Substring False Positives and Missing Word Boundaries in Dynamic Highlighter | JavaScript / Highlighter | Medium | Confirmed | [009.md](./009.md) |
 | **010** | Bootstrap Modal Multiple Instantiation and Memory Leaks | JavaScript / Modals | Low | Confirmed | [010.md](./010.md) |

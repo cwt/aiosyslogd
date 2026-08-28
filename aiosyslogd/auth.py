@@ -1,7 +1,7 @@
-# aiosyslogd/auth.py
-# -*- coding: utf-8 -*-
 import json
 import os
+import shutil
+import tempfile
 from werkzeug.security import generate_password_hash, check_password_hash
 from loguru import logger
 
@@ -38,6 +38,16 @@ class AuthManager:
         self.users_file = users_file
         self.users = self._load_users()
 
+    def _write_json_atomic(self, file_path, data):
+        dir_name = os.path.dirname(os.path.abspath(file_path)) or "."
+        os.makedirs(dir_name, exist_ok=True)
+        with tempfile.NamedTemporaryFile("w", dir=dir_name, delete=False) as tf:
+            temp_name = tf.name
+            json.dump(data, tf, indent=4)
+            tf.flush()
+            os.fsync(tf.fileno())
+        os.replace(temp_name, file_path)
+
     def _load_users(self):
         if not os.path.exists(self.users_file):
             logger.info(
@@ -54,11 +64,18 @@ class AuthManager:
                 }
             except json.JSONDecodeError:
                 logger.error(
-                    f"Error decoding JSON from {self.users_file}. Creating a new one."
+                    f"Error decoding JSON from {self.users_file}. Preserving backup and creating a new one."
                 )
+                backup_file = f"{self.users_file}.bak"
+                try:
+                    shutil.copyfile(self.users_file, backup_file)
+                except OSError as e:
+                    logger.warning(
+                        f"Could not create backup of corrupted users file: {e}"
+                    )
                 self._create_default_users_file()
-                with open(self.users_file, "r") as f:
-                    users_data = json.load(f)
+                with open(self.users_file, "r") as f_new:
+                    users_data = json.load(f_new)
                     return {
                         username: User.from_dict(data)
                         for username, data in users_data.items()
@@ -74,22 +91,16 @@ class AuthManager:
                 is_enabled=True,
             ).to_dict()
         }
-        with open(self.users_file, "w") as f:
-            json.dump(default_admin_user, f, indent=4)
+        self._write_json_atomic(self.users_file, default_admin_user)
         logger.info(
             f"Default admin user created with password: {default_admin_password}"
         )
 
     def _save_users(self):
-        with open(self.users_file, "w") as f:
-            json.dump(
-                {
-                    username: user.to_dict()
-                    for username, user in self.users.items()
-                },
-                f,
-                indent=4,
-            )
+        users_data = {
+            username: user.to_dict() for username, user in self.users.items()
+        }
+        self._write_json_atomic(self.users_file, users_data)
 
     def get_user(self, username):
         return self.users.get(username)
