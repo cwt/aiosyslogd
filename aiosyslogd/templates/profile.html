@@ -81,33 +81,21 @@
                 localStorage.setItem('gemini_authenticated', 'true');
                 
                 // Send to server to confirm save (API key only stored in browser)
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.querySelector('[name="csrf_token"]')?.value || '';
-                const resp = await fetch('/api/save-gemini-key', {
+                await apiFetch('/api/save-gemini-key', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': csrfToken
-                    },
                     body: JSON.stringify({api_key: apiKey})
                 });
                 
-                const data = await resp.json();
+                statusDiv.innerHTML = '<div class="alert alert-success">API key saved successfully!</div>';
+                statusDiv.style.display = 'block';
                 
-                if (resp.ok) {
-                    statusDiv.innerHTML = '<div class="alert alert-success">API key saved successfully!</div>';
-                    statusDiv.style.display = 'block';
-                    
-                    // Clear the input field and update placeholder
-                    apiKeyInput.value = '';
-                    apiKeyInput.placeholder = '••••••••••••••••••••';
-                    
-                    setTimeout(() => {
-                        statusDiv.style.display = 'none';
-                    }, 3000);
-                } else {
-                    statusDiv.innerHTML = `<div class="alert alert-danger">Error: ${data.error || 'Failed to save API key'}</div>`;
-                    statusDiv.style.display = 'block';
-                }
+                // Clear the input field and update placeholder
+                apiKeyInput.value = '';
+                apiKeyInput.placeholder = '••••••••••••••••••••';
+                
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 3000);
             } catch (error) {
                 statusDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
                 statusDiv.style.display = 'block';
@@ -126,33 +114,21 @@
                 localStorage.removeItem('gemini_authenticated');
                 
                 // Send to server to confirm clear (API key only stored in browser)
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.querySelector('[name="csrf_token"]')?.value || '';
-                const resp = await fetch('/api/clear-gemini-key', {
+                await apiFetch('/api/clear-gemini-key', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': csrfToken
-                    },
                     body: JSON.stringify({})
                 });
                 
-                const data = await resp.json();
+                // Update UI
+                apiKeyInput.value = '';
+                apiKeyInput.placeholder = 'Enter your Gemini API key';
                 
-                if (resp.ok) {
-                    // Update UI
-                    apiKeyInput.value = '';
-                    apiKeyInput.placeholder = 'Enter your Gemini API key';
-                    
-                    statusDiv.innerHTML = '<div class="alert alert-success">API key cleared successfully!</div>';
-                    statusDiv.style.display = 'block';
-                    
-                    setTimeout(() => {
-                        statusDiv.style.display = 'none';
-                    }, 3000);
-                } else {
-                    statusDiv.innerHTML = `<div class="alert alert-danger">Error: ${data.error || 'Failed to clear API key'}</div>`;
-                    statusDiv.style.display = 'block';
-                }
+                statusDiv.innerHTML = '<div class="alert alert-success">API key cleared successfully!</div>';
+                statusDiv.style.display = 'block';
+                
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 3000);
             } catch (error) {
                 statusDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
                 statusDiv.style.display = 'block';

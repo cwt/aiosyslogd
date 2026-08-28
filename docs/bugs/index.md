@@ -37,7 +37,7 @@ This directory serves as the local tracking registry for defects and architectur
 | **019** | Add Password Confirmation Field on User Management and Profile Forms | Improvement | Auth / Forms | Medium | Implemented | [019.md](./019.md) |
 | **020** | Remove Inline Event Handlers for Strict Content Security Policy (CSP) | Improvement | Security / JS | Low | Implemented | [020.md](./020.md) |
 | **021** | Optimize Dynamic Highlighter In-Place Reset without Page Reload | Improvement | JavaScript / Perf | Low | Implemented | [021.md](./021.md) |
-| **022** | Consolidate API Fetch Helper and CSRF Token Handling | Improvement | JavaScript / API | Low | Proposed | [022.md](./022.md) |
+| **022** | Consolidate API Fetch Helper and CSRF Token Handling | Improvement | JavaScript / API | Low | Implemented | [022.md](./022.md) |
 | **023** | Monospace Typography and Word Breaking for Syslog Message Cells | Improvement | CSS / Readability | Low | Proposed | [023.md](./023.md) |
 | **024** | Remove Brittle Inline Hover Style Event Handlers on Action Buttons | Improvement | CSS / UI | Low | Proposed | [024.md](./024.md) |
 | **025** | Upgrade User Form Checkboxes to Bootstrap 5 Switches | Improvement | UI / Forms | Low | Proposed | [025.md](./025.md) |

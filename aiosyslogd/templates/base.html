@@ -73,6 +73,26 @@
         {% block content %}{% endblock %}
     </main>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        async function apiFetch(url, options = {}) {
+            const metaToken = document.querySelector('meta[name="csrf-token"]');
+            const csrfToken = metaToken ? metaToken.getAttribute('content') : '';
+
+            const headers = {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
+                ...(options.headers || {})
+            };
+
+            const response = await fetch(url, { ...options, headers });
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+            }
+            return data;
+        }
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

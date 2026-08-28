@@ -468,34 +468,22 @@ document.addEventListener('DOMContentLoaded', function() {
             authResponseDiv.style.display = 'none';
             authLoader.style.display = 'block';
 
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.querySelector('[name="csrf_token"]')?.value || '';
-            const resp = await fetch('/api/save-gemini-key', {
+            const data = await apiFetch('/api/save-gemini-key', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': csrfToken
-                },
                 body: JSON.stringify({api_key: apiKey})
             });
 
-            const data = await resp.json();
+            localStorage.setItem('gemini_authenticated', 'true');
+            localStorage.setItem('gemini_api_key', apiKey); // Store for convenience
+            authResponseDiv.innerHTML = '<p class="text-success">Successfully authenticated with Gemini!</p>';
+            authResponseDiv.style.display = 'block';
 
-            if (resp.ok) {
-                localStorage.setItem('gemini_authenticated', 'true');
-                localStorage.setItem('gemini_api_key', apiKey); // Store for convenience
-                authResponseDiv.innerHTML = '<p class="text-success">Successfully authenticated with Gemini!</p>';
-                authResponseDiv.style.display = 'block';
-
-                // Close auth modal and open main Gemini modal
-                setTimeout(() => {
-                    bootstrap.Modal.getOrCreateInstance(document.getElementById('geminiAuthModal')).hide();
-                    const mainModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('geminiModal'));
-                    mainModal.show();
-                }, 1000);
-            } else {
-                authResponseDiv.innerHTML = `<p class="text-danger">Error: ${data.error || 'Authentication failed'}</p>`;
-                authResponseDiv.style.display = 'block';
-            }
+            // Close auth modal and open main Gemini modal
+            setTimeout(() => {
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('geminiAuthModal')).hide();
+                const mainModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('geminiModal'));
+                mainModal.show();
+            }, 1000);
         } catch (error) {
             authResponseDiv.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
             authResponseDiv.style.display = 'block';
@@ -528,39 +516,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.querySelector('[name="csrf_token"]')?.value || '';
-            const resp = await fetch('/api/gemini-search', {
+            const data = await apiFetch('/api/gemini-search', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': csrfToken
-                },
                 body: JSON.stringify({
                     query: userInput,
                     api_key: apiKey
                 })
             });
 
-            const data = await resp.json();
+            responseDiv.innerHTML = `<p><strong>Generated FTS5 Query:</strong> <code>${data.fts5_query}</code></p>`;
+            responseDiv.style.display = 'block';
 
-            if (resp.ok) {
-                responseDiv.innerHTML = `<p><strong>Generated FTS5 Query:</strong> <code>${data.fts5_query}</code></p>`;
-                responseDiv.style.display = 'block';
-
-                // Option to insert the query into the search box
-                const insertBtn = document.createElement('button');
-                insertBtn.className = 'btn btn-success btn-sm mt-2';
-                insertBtn.textContent = 'Use This Query';
-                insertBtn.onclick = function() {
-                    document.querySelector('input[name="q"]').value = data.fts5_query;
-                    document.querySelector('form').submit();
-                    bootstrap.Modal.getOrCreateInstance(document.getElementById('geminiModal')).hide();
-                };
-                responseDiv.appendChild(insertBtn);
-            } else {
-                responseDiv.innerHTML = `<p class="text-danger">Error: ${data.error || 'Unknown error'}</p>`;
-                responseDiv.style.display = 'block';
-            }
+            // Option to insert the query into the search box
+            const insertBtn = document.createElement('button');
+            insertBtn.className = 'btn btn-success btn-sm mt-2';
+            insertBtn.textContent = 'Use This Query';
+            insertBtn.onclick = function() {
+                document.querySelector('input[name="q"]').value = data.fts5_query;
+                document.querySelector('form').submit();
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('geminiModal')).hide();
+            };
+            responseDiv.appendChild(insertBtn);
         } catch (error) {
             responseDiv.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
             responseDiv.style.display = 'block';
