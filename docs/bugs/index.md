@@ -30,6 +30,7 @@ This directory serves as the local bug tracking registry for the `aiosyslogd` we
 | **012** | Unstyled Error Flash Messages (alert-error vs alert-danger) | HTML / CSS | Low | Confirmed | [012.md](./012.md) |
 | **013** | Tailwind CSS Utility Classes Used in Bootstrap 5 Environment | HTML / CSS | Low | Confirmed | [013.md](./013.md) |
 | **014** | Missing Margin Between Floating Form Controls on Login View | HTML / CSS | Low | Confirmed | [014.md](./014.md) |
+| **015** | CSRF Protection Exemption on State-Changing API Endpoints | Python / Middleware | Medium | Confirmed | [015.md](./015.md) |
 
 ---
 
@@ -47,6 +48,7 @@ This directory serves as the local bug tracking registry for the `aiosyslogd` we
 - [007. Non-Atomic File Writes and User File Corruption in AuthManager](./007.md)
 - [008. Uncaught Null Reference Crash on Profile Page when Gemini is Disabled](./008.md)
 - [009. Regex Substring False Positives and Missing Word Boundaries in Dynamic Highlighter](./009.md)
+- [015. CSRF Protection Exemption on State-Changing API Endpoints](./015.md)
 
 ### Low Severity (UI Defects & Code Quality)
 - [010. Bootstrap Modal Multiple Instantiation and Memory Leaks](./010.md)
@@ -61,10 +63,9 @@ This directory serves as the local bug tracking registry for the `aiosyslogd` we
 
 ### 2026-08-28 — Source Code Validation
 
-All 14 reports were cross-checked against the current source code (`aiosyslogd/web.py`, `aiosyslogd/auth.py`, `aiosyslogd/activity/__init__.py`, and the referenced templates).
+All 15 reports were cross-checked against the current source code (`aiosyslogd/web.py`, `aiosyslogd/auth.py`, `aiosyslogd/activity/__init__.py`, and the referenced templates).
 
-- **Result:** 13 of 14 reports confirmed exactly as documented. [006](./006.md) was confirmed as **latent-only**: the code matches the report, but the `KeyError` / `AttributeError` failure paths are not currently reachable because every admin route stacks `@login_required` first (which already guards missing, deleted, and disabled users). Treated as defensive hardening rather than an active defect.
-- **New finding (candidate 015, not yet filed):** the `csrf_protect` hook exempts every `/api/*` path (`web.py`), so the JSON POST endpoints (`/api/gemini-search`, `/api/save-gemini-key`, `/api/clear-gemini-key`) have no server-side CSRF enforcement; the `X-CSRF-Token` headers sent by the JavaScript are never verified.
+- **Result:** 14 of 15 reports confirmed exactly as documented. [006](./006.md) was confirmed as **latent-only**: the code matches the report, but the `KeyError` / `AttributeError` failure paths are not currently reachable because every admin route stacks `@login_required` first (which already guards missing, deleted, and disabled users). Treated as defensive hardening rather than an active defect.
 - **Severity notes:** [008](./008.md)'s impact is console noise plus a dead (already hidden) UI section — arguably Low rather than Medium. [007](./007.md)'s concurrent-write claim is weak under the default single-worker deployment, but the crash-mid-write corruption path is real.
 
 ---
