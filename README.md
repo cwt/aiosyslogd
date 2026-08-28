@@ -278,7 +278,7 @@ To enable this feature:
 1. **Configure Gemini API Access** (first time only):
 
    - If you haven't configured API access before, you'll see instructions to get your Gemini API key
-   - Visit [Google AI Studio](https://makersuite.google.com/app/apikey) to create an account and get your API key
+   - Visit [Google AI Studio](https://aistudio.google.com/app/apikey) to create an account and get your API key
    - Enter your API key in the modal and save it
    - Your API key is stored locally in your browser's localStorage and on the server session
 
