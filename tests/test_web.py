@@ -1018,7 +1018,7 @@ async def test_csrf_protection_enforcement(client):
             )
             assert response.status_code == 403
 
-            # 3. Valid CSRF token -> 302 (accepted)
+            # 3. Valid CSRF token in form -> 302 (accepted)
             with patch(
                 "aiosyslogd.web.auth_manager.update_password",
                 return_value=(True, "Success"),
@@ -1031,6 +1031,29 @@ async def test_csrf_protection_enforcement(client):
                     },
                 )
                 assert response.status_code == 302
+
+            # 4. API POST missing X-CSRF-Token -> 403
+            response = await client.post(
+                "/api/save-gemini-key",
+                json={"api_key": "test_key"},
+            )
+            assert response.status_code == 403
+
+            # 5. API POST invalid X-CSRF-Token -> 403
+            response = await client.post(
+                "/api/save-gemini-key",
+                json={"api_key": "test_key"},
+                headers={"X-CSRF-Token": "bad_token"},
+            )
+            assert response.status_code == 403
+
+            # 6. API POST valid X-CSRF-Token -> 200
+            response = await client.post(
+                "/api/save-gemini-key",
+                json={"api_key": "test_key"},
+                headers={"X-CSRF-Token": "valid_test_token"},
+            )
+            assert response.status_code == 200
     finally:
         app.config.pop("TESTING_CSRF", None)
 

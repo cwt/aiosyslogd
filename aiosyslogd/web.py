@@ -95,10 +95,6 @@ def is_gemini_available() -> bool:
 
 @app.before_request
 async def csrf_protect():
-    # Skip CSRF for API endpoints that don't require it
-    if request.path.startswith("/api/"):
-        return
-
     # Check if we're in testing mode
     import sys
 
@@ -114,9 +110,17 @@ async def csrf_protect():
             session["_csrf_token"] = os.urandom(24).hex()
             token = session["_csrf_token"]
 
+        header_token = request.headers.get(
+            "X-CSRF-Token"
+        ) or request.headers.get("X-CSRFToken")
+        if header_token and header_token == token:
+            return
+
         form_data = await request.form
-        if form_data.get("csrf_token") != token:
-            abort(403)
+        if form_data.get("csrf_token") == token:
+            return
+
+        abort(403)
 
 
 # --- Datetime Type Adapters for SQLite ---
