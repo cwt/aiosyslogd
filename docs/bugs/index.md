@@ -40,7 +40,7 @@ This directory serves as the local tracking registry for defects and architectur
 | **022** | Consolidate API Fetch Helper and CSRF Token Handling | Improvement | JavaScript / API | Low | Implemented | [022.md](./022.md) |
 | **023** | Monospace Typography and Word Breaking for Syslog Message Cells | Improvement | CSS / Readability | Low | Implemented | [023.md](./023.md) |
 | **024** | Remove Brittle Inline Hover Style Event Handlers on Action Buttons | Improvement | CSS / UI | Low | Implemented | [024.md](./024.md) |
-| **025** | Upgrade User Form Checkboxes to Bootstrap 5 Switches | Improvement | UI / Forms | Low | Proposed | [025.md](./025.md) |
+| **025** | Upgrade User Form Checkboxes to Bootstrap 5 Switches | Improvement | UI / Forms | Low | Implemented | [025.md](./025.md) |
 | **026** | Add Dark Mode Color Scheme Support via Bootstrap 5.3+ | Improvement | CSS / Dark Mode | Low | Proposed | [026.md](./026.md) |
 | **027** | Add Accessibility Improvements (A11y, ARIA Labels, and Table Scopes) | Improvement | Accessibility / A11y | Low | Proposed | [027.md](./027.md) |
 | **028** | Add Subresource Integrity (SRI) Hashes to CDN Assets and Add Default Favicon | Improvement | Security / Assets | Low | Proposed | [028.md](./028.md) |
