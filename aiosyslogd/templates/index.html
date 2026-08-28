@@ -196,9 +196,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            const allKeysRegexParts = originalCasingKeys.map(key => {
+            const sortedKeys = [...originalCasingKeys].sort((a, b) => b.length - a.length);
+            const allKeysRegexParts = sortedKeys.map(key => {
                 const sanitizedKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
-                return `(${sanitizedKey}(?:\\s*=\\s*|\\s+)(?:'[^']+'|"[^"]+"|[\\S]+))`;
+                return `(?:\\b${sanitizedKey}(?:\\s*=\\s*|\\s+)(?:'[^']+'|"[^"]+"|[\\S]+))`;
             });
             const combinedRegex = new RegExp(allKeysRegexParts.join('|'), 'gi');
 
@@ -211,9 +212,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 const matchedValue = match[0];
-                const matchedKey = originalCasingKeys.find(k => matchedValue.toLowerCase().startsWith(k.toLowerCase()));
-                const lowerCaseKey = matchedKey ? matchedKey.toLowerCase() : '';
-                const colorClass = keyColorMap[lowerCaseKey] || highlightColors[0];
+                const keyMatch = matchedValue.match(/^([^=\s]+)/);
+                const extractedKey = keyMatch ? keyMatch[1].toLowerCase() : '';
+                const colorClass = keyColorMap[extractedKey] || highlightColors[0];
 
                 const span = document.createElement('span');
                 span.className = `highlight-span ${colorClass}`;

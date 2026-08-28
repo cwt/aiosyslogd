@@ -24,7 +24,7 @@ This directory serves as the local bug tracking registry for the `aiosyslogd` we
 | **006** | Fragile admin_required Decorator Missing User Verification | Python / Decorators | Medium | Fixed | [006.md](./006.md) |
 | **007** | Non-Atomic File Writes and User File Corruption in AuthManager | Python / Storage | Medium | Fixed | [007.md](./007.md) |
 | **008** | Uncaught Null Reference Crash on Profile Page when Gemini is Disabled | JavaScript / Profile | Medium | Fixed | [008.md](./008.md) |
-| **009** | Regex Substring False Positives and Missing Word Boundaries in Dynamic Highlighter | JavaScript / Highlighter | Medium | Confirmed | [009.md](./009.md) |
+| **009** | Regex Substring False Positives and Missing Word Boundaries in Dynamic Highlighter | JavaScript / Highlighter | Medium | Fixed | [009.md](./009.md) |
 | **010** | Bootstrap Modal Multiple Instantiation and Memory Leaks | JavaScript / Modals | Low | Confirmed | [010.md](./010.md) |
 | **011** | CSRF Token Leakage in Search and Filter GET Forms | HTML / Templates | Low | Confirmed | [011.md](./011.md) |
 | **012** | Unstyled Error Flash Messages (alert-error vs alert-danger) | HTML / CSS | Low | Confirmed | [012.md](./012.md) |

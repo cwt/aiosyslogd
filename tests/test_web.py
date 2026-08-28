@@ -1101,3 +1101,28 @@ async def test_api_activity_route_validation(client):
                 assert response.status_code == 400
                 data = await response.get_json()
                 assert "syntax error" in data["error"]
+
+
+@pytest.mark.asyncio
+async def test_dynamic_highlighter_template_regex(client):
+    """
+    Tests that the index page template contains word boundary regex in dynamic highlighter.
+    """
+    mock_user = MagicMock()
+    mock_user.is_enabled = True
+
+    with patch("aiosyslogd.web.auth_manager.get_user", return_value=mock_user):
+        async with client.session_transaction() as sess:
+            sess["username"] = "testuser"
+
+        with patch(
+            "aiosyslogd.web.get_available_databases",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
+            response = await client.get("/")
+            assert response.status_code == 200
+            html = await response.get_data(as_text=True)
+            assert (
+                "\\\\b${sanitizedKey}" in html or "\\b${sanitizedKey}" in html
+            )
