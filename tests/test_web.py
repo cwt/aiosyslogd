@@ -1180,3 +1180,20 @@ async def test_get_forms_no_csrf_token_leakage(client):
                     not in html_activity
                 )
                 assert '<meta name="csrf-token"' in html_activity
+
+
+@pytest.mark.asyncio
+async def test_flash_error_alert_danger_class(client):
+    """
+    Tests that flashed messages with category 'error' render as 'alert-danger'.
+    """
+    with patch(
+        "aiosyslogd.web.auth_manager.check_password", return_value=False
+    ):
+        response = await client.post(
+            "/login", form={"username": "admin", "password": "wrong_password"}
+        )
+        assert response.status_code == 200
+        html = await response.get_data(as_text=True)
+        assert "alert-danger" in html
+        assert "alert-error" not in html
