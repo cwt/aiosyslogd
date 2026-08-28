@@ -101,26 +101,21 @@ async def csrf_protect():
     # Check if we're in testing mode
     import sys
 
-    if "pytest" in sys.modules:
+    if "pytest" in sys.modules and not app.config.get("TESTING_CSRF"):
         # Skip CSRF validation during tests
         return
 
     if request.method in ["POST", "PUT", "DELETE"]:
-        # For form requests, check form data
-        if (
-            request.content_type
-            and "application/x-www-form-urlencoded" in request.content_type
-        ):
-            form_data = await request.form
-            token = session.get("_csrf_token")
+        token = session.get("_csrf_token")
 
-            # If there's no token in session, generate one (this handles new sessions)
-            if not token:
-                session["_csrf_token"] = os.urandom(24).hex()
-                token = session["_csrf_token"]
+        # If there's no token in session, generate one (this handles new sessions)
+        if not token:
+            session["_csrf_token"] = os.urandom(24).hex()
+            token = session["_csrf_token"]
 
-            if form_data.get("csrf_token") != token:
-                abort(403)
+        form_data = await request.form
+        if form_data.get("csrf_token") != token:
+            abort(403)
 
 
 # --- Datetime Type Adapters for SQLite ---

@@ -918,3 +918,53 @@ async def test_profile_route(client):
         assert (
             response.status_code == 302
         )  # Redirects back to profile either way currently
+
+
+@pytest.mark.asyncio
+async def test_csrf_protection_enforcement(client):
+    """
+    Tests CSRF validation enforcement for POST requests with and without valid tokens.
+    """
+    from aiosyslogd.web import app
+
+    app.config["TESTING_CSRF"] = True
+    try:
+        mock_user = MagicMock()
+        mock_user.is_enabled = True
+        mock_user.role = "admin"
+
+        with patch(
+            "aiosyslogd.web.auth_manager.get_user", return_value=mock_user
+        ):
+            async with client.session_transaction() as sess:
+                sess["username"] = "admin"
+                sess["_csrf_token"] = "valid_test_token"
+
+            # 1. Missing CSRF token -> 403
+            response = await client.post(
+                "/profile", form={"password": "new_pw"}
+            )
+            assert response.status_code == 403
+
+            # 2. Invalid CSRF token -> 403
+            response = await client.post(
+                "/profile",
+                form={"password": "new_pw", "csrf_token": "invalid_token"},
+            )
+            assert response.status_code == 403
+
+            # 3. Valid CSRF token -> 302 (accepted)
+            with patch(
+                "aiosyslogd.web.auth_manager.update_password",
+                return_value=(True, "Success"),
+            ):
+                response = await client.post(
+                    "/profile",
+                    form={
+                        "password": "new_pw",
+                        "csrf_token": "valid_test_token",
+                    },
+                )
+                assert response.status_code == 302
+    finally:
+        app.config.pop("TESTING_CSRF", None)
