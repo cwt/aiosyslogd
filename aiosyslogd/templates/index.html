@@ -326,9 +326,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function resetHighlights() {
+        originalCasingKeys = [];
+        keyColorMap = {};
         const url = new URL(window.location.href);
         url.searchParams.delete('extract');
-        window.location.href = url.toString();
+        window.history.replaceState({}, '', url.toString());
+        updateKeyListUI();
+        updatePaginationLinks();
+        applyAllHighlights();
     }
 
     function updateKeyListUI() {
