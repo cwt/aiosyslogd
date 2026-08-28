@@ -31,7 +31,7 @@ This directory serves as the local tracking registry for defects and architectur
 | **013** | Tailwind CSS Utility Classes Used in Bootstrap 5 Environment | Bug | HTML / CSS | Low | Fixed | [013.md](./013.md) |
 | **014** | Missing Margin Between Floating Form Controls on Login View | Bug | HTML / CSS | Low | Fixed | [014.md](./014.md) |
 | **015** | CSRF Protection Exemption on State-Changing API Endpoints | Bug | Python / Middleware | Medium | Fixed | [015.md](./015.md) |
-| **016** | Remove Dynamic JavaScript HTML Injection for Gemini Modals | Improvement | Jinja2 / JavaScript | Medium | Proposed | [016.md](./016.md) |
+| **016** | Remove Dynamic JavaScript HTML Injection for Gemini Modals | Improvement | Jinja2 / JavaScript | Medium | Implemented | [016.md](./016.md) |
 | **017** | Add Template Extension Blocks for Styles and Scripts in base.html | Improvement | Jinja2 / Templates | Low | Proposed | [017.md](./017.md) |
 | **018** | Add Active Route Highlighting in Top Navigation Bar | Improvement | Navigation / UI | Low | Proposed | [018.md](./018.md) |
 | **019** | Add Password Confirmation Field on User Management and Profile Forms | Improvement | Auth / Forms | Medium | Proposed | [019.md](./019.md) |

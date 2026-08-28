@@ -483,46 +483,35 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function showGeminiAuthModal() {
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('geminiAuthModal'));
+        modal.show();
+    }
 });
+</script>
 
-// Add the modals to the page only if gemini is available
 {% if gemini_available %}
-document.addEventListener('DOMContentLoaded', function() {
-    const body = document.body;
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = geminiModalsHtml;
-    body.appendChild(tempDiv);
-});
-{% endif %}
-
-function showGeminiAuthModal() {
-    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('geminiAuthModal'));
-    modal.show();
-}
-
-// Modal HTML elements - these will be added to the page
-const geminiModalsHtml = `
 <!-- Gemini Authentication Modal -->
-<div class="modal fade" id="geminiAuthModal" tabindex="-1">
+<div class="modal fade" id="geminiAuthModal" tabindex="-1" aria-labelledby="geminiAuthModalTitle" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Configure Gemini API Access</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="geminiAuthModalTitle">Configure Gemini API Access</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <p>To use the Gemini natural language search feature, you need to provide your own Gemini API key.</p>
 
                 <h6>How to get your Gemini API key:</h6>
                 <ol>
-                    <li>Go to <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></li>
+                    <li>Go to <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a></li>
                     <li>Create an account or sign in with your Google account</li>
                     <li>Click "Get API Key" or "Create API Key"</li>
                     <li>Follow the instructions to create a new API key</li>
                     <li>Copy the API key</li>
                 </ol>
 
-                <p>Then go to your <a href="/profile">Profile page</a> to save your API key.</p>
+                <p>Then go to your <a href="{{ url_for('profile') }}">Profile page</a> to save your API key.</p>
 
                 <div class="mb-3">
                     <label for="gemini-api-key" class="form-label">Your Gemini API Key</label>
@@ -547,12 +536,12 @@ const geminiModalsHtml = `
 </div>
 
 <!-- Gemini Query Modal -->
-<div class="modal fade" id="geminiModal" tabindex="-1">
+<div class="modal fade" id="geminiModal" tabindex="-1" aria-labelledby="geminiModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Ask Gemini for Search Query</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="geminiModalTitle">Ask Gemini for Search Query</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <textarea id="gemini-input" class="form-control" rows="5" placeholder="Describe what you want to search for in plain language..."></textarea>
@@ -568,7 +557,5 @@ const geminiModalsHtml = `
         </div>
     </div>
 </div>
-`;
-
-</script>
+{% endif %}
 {% endblock %}
