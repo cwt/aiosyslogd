@@ -29,7 +29,7 @@
     <!-- Database Selector -->
     <div class="mb-3">
         <label for="db_file" class="form-label">Database File</label>
-        <select name="db_file" id="db_file" class="form-select" onchange="this.form.submit()">
+        <select name="db_file" id="db_file" class="form-select">
             {% for db in available_dbs %}
             <option value="{{ db }}" {% if db == selected_db %}selected{% endif %}>{{ db }}</option>
             {% endfor %}
@@ -41,9 +41,9 @@
         <input type="text" name="q" value="{{ search_query }}" placeholder="Enter FTS5 query for Message (e.g., 'error* OR failure')" class="form-control form-control-lg">
         <button type="submit" class="btn btn-primary">Search</button>
         {% if gemini_available %}
-        <button type="button" id="gemini-btn" class="btn btn-outline-success" title="Ask Gemini to create search query" style="color: green;" onmouseover="this.style.color='white'; this.style.backgroundColor='green';" onmouseout="this.style.color='green'; this.style.backgroundColor='';">✦</button>
+        <button type="button" id="gemini-btn" class="btn btn-outline-success" title="Ask Gemini to create search query" aria-label="Ask Gemini">✦</button>
         {% endif %}
-        <a href="{{ url_for('index', db_file=selected_db) }}" class="btn btn-outline-danger" title="Reset Search and Filters" style="color: red; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.color='white'; this.style.backgroundColor='red';" onmouseout="this.style.color='red'; this.style.backgroundColor='';">↻</a>
+        <a href="{{ url_for('index', db_file=selected_db) }}" class="btn btn-outline-danger d-inline-flex align-items-center justify-content-center" title="Reset Search and Filters" aria-label="Reset Search and Filters">↻</a>
     </div>
 
     <!-- Advanced Filters -->
@@ -232,6 +232,13 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const dbSelect = document.getElementById('db_file');
+    if (dbSelect) {
+        dbSelect.addEventListener('change', function() {
+            this.form.submit();
+        });
+    }
+
     const toggleSqlButton = document.getElementById('toggle-sql-btn');
     const sqlQueryBox = document.getElementById('sql-query-box');
 

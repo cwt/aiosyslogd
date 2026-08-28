@@ -11,7 +11,7 @@
 <form action="{{ url_for('activity') }}" method="get" class="bg-white p-4 rounded-3 shadow-sm mb-4">
     <div class="mb-3">
         <label for="db_file" class="form-label">Database File</label>
-        <select name="db_file" id="db_file" class="form-select" onchange="this.form.submit()">
+        <select name="db_file" id="db_file" class="form-select">
             {% for db in available_dbs %}
             <option value="{{ db }}" {% if db == selected_db %}selected{% endif %}>{{ db }}</option>
             {% endfor %}
@@ -90,14 +90,23 @@
         </tbody>
     </table>
 </div>
-{% else %}
-<div class="text-center py-5 bg-light rounded">
-    <p class="text-muted">No matching activity found. Try adjusting your query or timeframe.</p>
-</div>
 {% endif %}
 {% elif not error %}
 <div class="text-center py-5 bg-light rounded">
     <p class="text-muted">Enter an FTS5 query and time range, then click <strong>Analyze</strong>.</p>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dbSelect = document.getElementById('db_file');
+    if (dbSelect) {
+        dbSelect.addEventListener('change', function() {
+            this.form.submit();
+        });
+    }
+});
+</script>
 {% endblock %}
