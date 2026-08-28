@@ -154,8 +154,11 @@ def login_required(f):
 def admin_required(f):
     @wraps(f)
     async def decorated_function(*args, **kwargs):
-        user = auth_manager.get_user(session["username"])
-        if not user.is_admin:
+        username = session.get("username")
+        if not username:
+            return redirect(url_for("login", next=request.path))
+        user = auth_manager.get_user(username)
+        if not user or not user.is_enabled or not user.is_admin:
             await flash(
                 "You do not have permission to access this page.", "error"
             )

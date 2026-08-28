@@ -839,6 +839,21 @@ async def test_admin_required_decorator(client):
         assert response.status_code == 302
         assert response.location.endswith("/")  # Redirect to index
 
+        # Case: user is deleted/None
+        mock_get_user.return_value = None
+        response = await client.get("/users")
+        assert response.status_code == 302
+
+    # Case: standalone admin_required with no session
+    @web.admin_required
+    async def dummy_admin_endpoint():
+        return "admin_ok"
+
+    async with web.app.test_request_context("/dummy-admin"):
+        res = await dummy_admin_endpoint()
+        assert res.status_code == 302
+        assert res.location.startswith("/login")
+
 
 @pytest.mark.asyncio
 async def test_user_management_routes(client):
