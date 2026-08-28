@@ -891,14 +891,32 @@ async def test_user_management_routes(client):
         mock_auth.get_user.side_effect = None
         mock_auth.get_user.return_value = mock_user
 
-        # Edit User POST
+        # Edit User POST (other user)
         response = await client.post(
             "/users/edit/someuser",
-            form={"password": "new_pw", "is_admin": "on"},
+            form={"password": "new_pw", "is_admin": "on", "is_enabled": "on"},
         )
         assert response.status_code == 302
         mock_auth.update_password.assert_called()
         mock_auth.set_user_admin_status.assert_called()
+
+        # Edit User POST (self-demotion prevented)
+        mock_auth.set_user_admin_status.reset_mock()
+        response = await client.post(
+            "/users/edit/admin",
+            form={"is_enabled": "on"},  # missing is_admin
+        )
+        assert response.status_code == 302
+        mock_auth.set_user_admin_status.assert_not_called()
+
+        # Edit User POST (self-disabling prevented)
+        mock_auth.set_user_enabled_status.reset_mock()
+        response = await client.post(
+            "/users/edit/admin",
+            form={"is_admin": "on"},  # missing is_enabled
+        )
+        assert response.status_code == 302
+        mock_auth.set_user_enabled_status.assert_not_called()
 
         # Delete User
         mock_auth.delete_user.return_value = (True, "Deleted")

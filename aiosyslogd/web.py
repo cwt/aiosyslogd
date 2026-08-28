@@ -362,6 +362,18 @@ async def edit_user(username):
         is_admin = form.get("is_admin") == "on"
         is_enabled = form.get("is_enabled") == "on"
 
+        current_username = session.get("username")
+        if username == current_username:
+            if not is_admin:
+                await flash(
+                    "You cannot remove admin privileges from your own account.",
+                    "error",
+                )
+                return redirect(url_for("list_users"))
+            if not is_enabled:
+                await flash("You cannot disable your own account.", "error")
+                return redirect(url_for("list_users"))
+
         if new_password:
             auth_manager.update_password(username, new_password)
             await flash("Password updated.", "success")
