@@ -10,6 +10,12 @@
     .hl-3 { background-color: #f3e8ff; color: #6b21a8; }
     .hl-4 { background-color: #fce7f3; color: #9d174d; }
     .hl-5 { background-color: #e0e7ff; color: #3730a3; }
+    [data-bs-theme="dark"] .hl-0 { background-color: #064e3b; color: #6ee7b7; }
+    [data-bs-theme="dark"] .hl-1 { background-color: #713f12; color: #fde047; }
+    [data-bs-theme="dark"] .hl-2 { background-color: #1e3a8a; color: #93c5fd; }
+    [data-bs-theme="dark"] .hl-3 { background-color: #581c87; color: #d8b4fe; }
+    [data-bs-theme="dark"] .hl-4 { background-color: #831843; color: #f472b6; }
+    [data-bs-theme="dark"] .hl-5 { background-color: #312e81; color: #a5b4fc; }
     .highlight-span {
         padding: 1px 4px;
         border-radius: 4px;
@@ -27,12 +33,12 @@
 
 {% block content %}
 <header class="text-center mb-4">
-    <h1 class="display-6 fw-bold text-dark">aiosyslogd Log Viewer</h1>
+    <h1 class="display-6 fw-bold text-body">aiosyslogd Log Viewer</h1>
     <p class="text-secondary">SQLite Log Search Interface</p>
 </header>
 
 <!-- Search and Filter Form -->
-<form action="{{ url_for('index') }}" method="get" class="bg-white p-4 rounded-3 shadow-sm mb-4">
+<form action="{{ url_for('index') }}" method="get" class="card bg-body-tertiary p-4 rounded-3 shadow-sm mb-4 border">
     <!-- Database Selector -->
     <div class="mb-3">
         <label for="db_file" class="form-label">Database File</label>
@@ -84,8 +90,8 @@
 </form>
 
 <!-- Key Highlighter UI -->
-<div class="bg-white p-3 rounded-3 shadow-sm mb-4 border">
-    <h3 class="h5 mb-2 text-dark">Dynamic Highlighter</h3>
+<div class="card bg-body-tertiary p-3 rounded-3 shadow-sm mb-4 border">
+    <h3 class="h5 mb-2 text-body">Dynamic Highlighter</h3>
     <div class="d-flex align-items-center gap-2">
         <input type="text" id="key-extractor-input" placeholder="Enter key to highlight" class="form-control">
         <button type="button" id="add-highlight-btn" class="btn btn-primary text-nowrap">

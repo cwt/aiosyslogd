@@ -1,11 +1,34 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="auto">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}aiosyslogd{% endblock %}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script>
+        (() => {
+            const storedTheme = localStorage.getItem('theme');
+            const getPreferredTheme = () => {
+                if (storedTheme) return storedTheme;
+                return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            };
+            const setTheme = theme => {
+                if (theme === 'auto') {
+                    document.documentElement.setAttribute('data-bs-theme', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                } else {
+                    document.documentElement.setAttribute('data-bs-theme', theme);
+                }
+            };
+            setTheme(getPreferredTheme());
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                const storedTheme = localStorage.getItem('theme');
+                if (storedTheme !== 'light' && storedTheme !== 'dark') {
+                    setTheme(getPreferredTheme());
+                }
+            });
+        })();
+    </script>
     <style>
         body {
             padding-top: 5rem;
@@ -36,7 +59,17 @@
                         {% endif %}
                     {% endif %}
                 </ul>
-                <ul class="navbar-nav ms-auto mb-2 mb-md-0">
+                <ul class="navbar-nav ms-auto mb-2 mb-md-0 align-items-center">
+                    <li class="nav-item dropdown me-2">
+                        <button class="btn btn-link nav-link py-2 px-0 px-lg-2 dropdown-toggle d-flex align-items-center" id="bd-theme" type="button" aria-expanded="false" data-bs-toggle="dropdown" data-bs-display="static" aria-label="Toggle theme">
+                            <span class="theme-icon-active" id="theme-icon-active">🌓</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="bd-theme">
+                            <li><button type="button" class="dropdown-item d-flex align-items-center theme-selector-btn" data-bs-theme-value="light">☀️ Light</button></li>
+                            <li><button type="button" class="dropdown-item d-flex align-items-center theme-selector-btn" data-bs-theme-value="dark">🌙 Dark</button></li>
+                            <li><button type="button" class="dropdown-item d-flex align-items-center theme-selector-btn" data-bs-theme-value="auto">⚙️ Auto</button></li>
+                        </ul>
+                    </li>
                     {% if current_user %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle {% if request.endpoint == 'profile' %}active{% endif %}" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -92,6 +125,31 @@
             }
             return data;
         }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const updateThemeIcon = (theme) => {
+                const icon = document.getElementById('theme-icon-active');
+                if (!icon) return;
+                if (theme === 'light') icon.textContent = '☀️';
+                else if (theme === 'dark') icon.textContent = '🌙';
+                else icon.textContent = '🌓';
+            };
+            const currentTheme = localStorage.getItem('theme') || 'auto';
+            updateThemeIcon(currentTheme);
+
+            document.querySelectorAll('.theme-selector-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const theme = btn.getAttribute('data-bs-theme-value');
+                    localStorage.setItem('theme', theme);
+                    if (theme === 'auto') {
+                        document.documentElement.setAttribute('data-bs-theme', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                    } else {
+                        document.documentElement.setAttribute('data-bs-theme', theme);
+                    }
+                    updateThemeIcon(theme);
+                });
+            });
+        });
     </script>
     {% block extra_js %}{% endblock %}
 </body>
