@@ -1,12 +1,13 @@
-# -*- coding: utf-8 -*-
-from . import BaseDatabase
-from datetime import datetime
-from typing import Any, Dict, List
-import aiosqlite
 import glob
 import operator
 import os
+from datetime import datetime
+from typing import Any
+
+import aiosqlite
 from loguru import logger
+
+from . import BaseDatabase
 
 
 class SQLiteDriver(BaseDatabase):
@@ -15,7 +16,7 @@ class SQLiteDriver(BaseDatabase):
     Optimized to handle month-boundary batches efficiently.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initializes the SQLite driver with configuration settings."""
         self.db_path_template = config.get("database", "syslog.sqlite3")
         self.sql_dump = config.get("sql_dump", False)
@@ -23,7 +24,6 @@ class SQLiteDriver(BaseDatabase):
         self.retention_months = config.get("retention_months", 12)
         self.db: aiosqlite.Connection | None = None
         self._current_db_path: str | None = None
-        pass
 
     def _get_db_path_for_month(self, dt: datetime) -> str:
         """Generates a monthly database filename, e.g., syslog_202506.sqlite3"""
@@ -47,7 +47,7 @@ class SQLiteDriver(BaseDatabase):
             self.db = None
             self._current_db_path = None
 
-    def _get_database_files(self) -> List[tuple[str, datetime]]:
+    def _get_database_files(self) -> list[tuple[str, datetime]]:
         """Returns a list of (filepath, month_datetime) tuples for existing database files."""
         db_dir = os.path.dirname(self.db_path_template) or "."
         base_pattern = os.path.basename(self.db_path_template)
@@ -183,7 +183,7 @@ class SQLiteDriver(BaseDatabase):
                 await self.db.commit()
 
     # Private helper method to handle writing a homogenous (single-month) batch.
-    async def _write_sub_batch(self, sub_batch: List[Dict[str, Any]]):
+    async def _write_sub_batch(self, sub_batch: list[dict[str, Any]]):
         """Writes a sub-batch of logs that all belong to the same month."""
         try:
             await self._switch_db_if_needed(sub_batch[0]["ReceivedAt"])
@@ -221,7 +221,7 @@ class SQLiteDriver(BaseDatabase):
                 await self.db.rollback()
 
     # The optimized write_batch method with a fast path.
-    async def write_batch(self, batch: List[Dict[str, Any]]) -> None:
+    async def write_batch(self, batch: list[dict[str, Any]]) -> None:
         """
         Efficiently writes a batch of logs, using a fast path for most cases
         and a partitioning path only for batches that span a month boundary.
@@ -244,7 +244,7 @@ class SQLiteDriver(BaseDatabase):
             # --- SLOW PATH (Rare month-boundary case) ---
             # Partition the batch by month and write each sub-batch.
             logger.debug("Month boundary detected in batch, partitioning...")
-            batches_by_month: Dict[str, List[Dict[str, Any]]] = {}
+            batches_by_month: dict[str, list[dict[str, Any]]] = {}
             for msg in batch:
                 month_key = msg["ReceivedAt"].strftime("%Y%m")
                 if month_key not in batches_by_month:

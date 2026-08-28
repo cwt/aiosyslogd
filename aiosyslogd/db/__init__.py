@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any
 
 
 class BaseDatabase(ABC):
@@ -9,14 +8,11 @@ class BaseDatabase(ABC):
     @abstractmethod
     async def connect(self) -> None:
         """Connect to the database."""
-        pass
 
     @abstractmethod
     async def close(self) -> None:
         """Close the database connection."""
-        pass
 
     @abstractmethod
-    async def write_batch(self, batch: List[Dict[str, Any]]) -> None:
+    async def write_batch(self, batch: list[dict[str, Any]]) -> None:
         """Write a batch of messages to the database."""
-        pass

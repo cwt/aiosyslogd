@@ -11,9 +11,8 @@ from .activity import run_activity_report
 from .activity.parsers import get_activity_parser
 
 
-def _make_table(users):  # noqa: F821  # type: ignore[no-untyped-def]
-    from prettytable import PrettyTable
-    from prettytable import HRuleStyle
+def _make_table(users):  # type: ignore[no-untyped-def]
+    from prettytable import HRuleStyle, PrettyTable
 
     table = PrettyTable()
     table.field_names = ["User", "Category", "App Breakdown", "Total"]

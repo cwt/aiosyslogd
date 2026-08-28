@@ -1,6 +1,7 @@
 import os
 import tempfile
 from datetime import datetime, timedelta
+
 import pytest
 
 from aiosyslogd.db.sqlite import SQLiteDriver

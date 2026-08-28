@@ -1,6 +1,7 @@
-# -*- coding: utf-8 -*-
-from . import BaseDatabase
+import asyncio
 from collections import defaultdict
+from typing import Any
+
 from loguru import logger
 from meilisearch_python_sdk import AsyncClient
 from meilisearch_python_sdk.errors import (
@@ -11,14 +12,14 @@ from meilisearch_python_sdk.models.settings import (
     MeilisearchSettings,
     ProximityPrecision,
 )
-from typing import Any, Dict, List, Set
-import asyncio
+
+from . import BaseDatabase
 
 
 class MeilisearchDriver(BaseDatabase):
     """Meilisearch database driver."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initializes the Meilisearch driver with the given configuration."""
         self.config = config
         self.debug = config.get("debug", False)
@@ -26,8 +27,8 @@ class MeilisearchDriver(BaseDatabase):
             url=self.config.get("url", "http://127.0.0.1:7700"),
             api_key=self.config.get("api_key") or None,
         )
-        self._indexes_created: Set[str] = set()
-        self._index_locks: Dict[str, asyncio.Lock] = {}
+        self._indexes_created: set[str] = set()
+        self._index_locks: dict[str, asyncio.Lock] = {}
 
     async def connect(self) -> None:
         """Checks the connection to the Meilisearch instance."""
@@ -106,12 +107,12 @@ class MeilisearchDriver(BaseDatabase):
             self._indexes_created.add(index_name)
             logger.debug(f"Index '{index_name}' is ready.")
 
-    async def write_batch(self, batch: List[Dict[str, Any]]) -> None:
+    async def write_batch(self, batch: list[dict[str, Any]]) -> None:
         """Writes a batch of log documents to Meilisearch."""
         if not batch:
             return
 
-        batches_by_index: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        batches_by_index: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for i, msg in enumerate(batch):
             index_name = msg["ReceivedAt"].strftime("SystemEvents%Y%m")
 
@@ -129,7 +130,7 @@ class MeilisearchDriver(BaseDatabase):
 
         try:
             # Step 1: Send all documents and collect the task uids
-            tasks_to_wait: List[int] = []
+            tasks_to_wait: list[int] = []
             for index_name, docs in batches_by_index.items():
                 await self._ensure_monthly_index(index_name)
                 index = self.client.index(index_name)

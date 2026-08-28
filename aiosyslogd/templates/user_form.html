@@ -17,6 +17,10 @@
             <div class="form-text">Leave blank to keep the current password.</div>
             {% endif %}
         </div>
+        <div class="mb-3">
+            <label for="confirm_password" class="form-label">Confirm Password</label>
+            <input type="password" class="form-control" id="confirm_password" name="confirm_password" {{ 'required' if not user }}>
+        </div>
         <div class="mb-3 form-check">
             <input type="checkbox" class="form-check-input" id="is_admin" name="is_admin" {{ 'checked' if user and user.is_admin }}>
             <label class="form-check-label" for="is_admin">Is Admin</label>

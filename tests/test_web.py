@@ -1,8 +1,9 @@
-from unittest.mock import patch, AsyncMock, MagicMock
-import aiosqlite
-import pytest
 import sqlite3
 import sys
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import aiosqlite
+import pytest
 
 # --- Import the module and app to be tested ---
 from aiosyslogd import web
@@ -371,14 +372,16 @@ class TestLogQuery:
 
         # --- Act ---
         # Patch aiosqlite.connect to be a function that returns our connect context manager
-        with patch(
-            "aiosqlite.connect", return_value=mock_connect_cm
-        ) as mock_connect_func:
-            with patch(
+        with (
+            patch(
+                "aiosqlite.connect", return_value=mock_connect_cm
+            ) as mock_connect_func,
+            patch(
                 "aiosyslogd.db.sqlite_utils.get_time_boundary_ids"
-            ) as mock_get_bounds:
-                log_query = sqlite_utils.LogQuery(ctx)
-                results = await log_query.run()
+            ) as mock_get_bounds,
+        ):
+            log_query = sqlite_utils.LogQuery(ctx)
+            results = await log_query.run()
 
         # --- Assert ---
         assert not log_query.use_approximate_count
@@ -624,30 +627,32 @@ class TestLogQuery:
         mock_connect_cm.__aenter__.return_value = mock_conn
 
         # Patch aiosqlite.connect and the boundary function
-        with patch(
-            "aiosqlite.connect", return_value=mock_connect_cm
-        ) as mock_connect_func:
-            with patch(
+        with (
+            patch(
+                "aiosqlite.connect", return_value=mock_connect_cm
+            ) as mock_connect_func,
+            patch(
                 "aiosyslogd.db.sqlite_utils.get_time_boundary_ids",
                 return_value=(
                     None,
                     None,
                     ["Debug info for boundaries"],
                 ),  # Simulate no IDs found
-            ) as mock_get_bounds:
-                # Patch the methods that should NOT be called if logic is correct
+            ) as mock_get_bounds,
+        ):
+            # Patch the methods that should NOT be called if logic is correct
+            with patch(
+                "aiosyslogd.db.sqlite_utils.LogQuery._get_total_log_count",
+                new_callable=AsyncMock,
+            ) as mock_get_count:
                 with patch(
-                    "aiosyslogd.db.sqlite_utils.LogQuery._get_total_log_count",
+                    "aiosyslogd.db.sqlite_utils.LogQuery._fetch_log_page",
                     new_callable=AsyncMock,
-                ) as mock_get_count:
-                    with patch(
-                        "aiosyslogd.db.sqlite_utils.LogQuery._fetch_log_page",
-                        new_callable=AsyncMock,
-                    ) as mock_fetch_page:
+                ) as mock_fetch_page:
 
-                        # --- Act ---
-                        log_query = sqlite_utils.LogQuery(ctx)
-                        results = await log_query.run()
+                    # --- Act ---
+                    log_query = sqlite_utils.LogQuery(ctx)
+                    results = await log_query.run()
 
         # --- Assert ---
         # The main logic should run up to determining the boundaries
@@ -879,20 +884,52 @@ async def test_user_management_routes(client):
         # Add User POST Success
         mock_auth.add_user.return_value = (True, "Success")
         response = await client.post(
-            "/users/add", form={"username": "new", "password": "pw"}
+            "/users/add",
+            form={
+                "username": "new",
+                "password": "pw",
+                "confirm_password": "pw",
+            },
         )
         assert response.status_code == 302
+
+        # Add User POST Mismatched Password
+        mock_auth.add_user.reset_mock()
+        response = await client.post(
+            "/users/add",
+            form={
+                "username": "new2",
+                "password": "pw1",
+                "confirm_password": "pw2",
+            },
+        )
+        assert response.status_code == 200
+        mock_auth.add_user.assert_not_called()
 
         # Add User POST Failure
         mock_auth.add_user.return_value = (False, "Fail")
         response = await client.post(
-            "/users/add", form={"username": "exists", "password": "pw"}
+            "/users/add",
+            form={
+                "username": "exists",
+                "password": "pw",
+                "confirm_password": "pw",
+            },
         )
         assert response.status_code == 200  # Renders form again with flash
 
         # Edit User GET
         response = await client.get("/users/edit/someuser")
         assert response.status_code == 200
+
+        # Edit User POST Mismatched Password
+        mock_auth.update_password.reset_mock()
+        response = await client.post(
+            "/users/edit/someuser",
+            form={"password": "pw1", "confirm_password": "pw2"},
+        )
+        assert response.status_code == 200
+        mock_auth.update_password.assert_not_called()
 
         # Edit User GET Not Found
         def mock_get_user(u):
@@ -972,14 +1009,29 @@ async def test_profile_route(client):
             html = await response.get_data(as_text=True)
             assert "save-gemini-key" in html
 
+        # POST Mismatched Password
+        mock_auth.update_password.reset_mock()
+        response = await client.post(
+            "/profile",
+            form={"password": "new_pw", "confirm_password": "diff_pw"},
+        )
+        assert response.status_code == 302
+        mock_auth.update_password.assert_not_called()
+
         # POST Success
         mock_auth.update_password.return_value = (True, "Success")
-        response = await client.post("/profile", form={"password": "new_pw"})
+        response = await client.post(
+            "/profile",
+            form={"password": "new_pw", "confirm_password": "new_pw"},
+        )
         assert response.status_code == 302
 
         # POST Failure
         mock_auth.update_password.return_value = (False, "Fail")
-        response = await client.post("/profile", form={"password": "new_pw"})
+        response = await client.post(
+            "/profile",
+            form={"password": "new_pw", "confirm_password": "new_pw"},
+        )
         assert (
             response.status_code == 302
         )  # Redirects back to profile either way currently
@@ -1175,34 +1227,31 @@ async def test_get_forms_no_csrf_token_leakage(client):
             "debug_info": [],
             "error": None,
         }
-        with patch(
-            "aiosyslogd.web.get_available_databases",
-            new_callable=AsyncMock,
-            return_value=["syslog.sqlite3"],
-        ):
-            with patch(
+        with (
+            patch(
+                "aiosyslogd.web.get_available_databases",
+                new_callable=AsyncMock,
+                return_value=["syslog.sqlite3"],
+            ),
+            patch(
                 "aiosyslogd.web.LogQuery.run",
                 new_callable=AsyncMock,
                 return_value=mock_result,
-            ):
-                # Index page GET form
-                res_index = await client.get("/")
-                assert res_index.status_code == 200
-                html_index = await res_index.get_data(as_text=True)
-                assert (
-                    '<input type="hidden" name="csrf_token"' not in html_index
-                )
-                assert '<meta name="csrf-token"' in html_index
+            ),
+        ):
+            # Index page GET form
+            res_index = await client.get("/")
+            assert res_index.status_code == 200
+            html_index = await res_index.get_data(as_text=True)
+            assert '<input type="hidden" name="csrf_token"' not in html_index
+            assert '<meta name="csrf-token"' in html_index
 
-                # Activity page GET form
-                res_activity = await client.get("/activity")
-                assert res_activity.status_code == 200
-                html_activity = await res_activity.get_data(as_text=True)
-                assert (
-                    '<input type="hidden" name="csrf_token"'
-                    not in html_activity
-                )
-                assert '<meta name="csrf-token"' in html_activity
+            # Activity page GET form
+            res_activity = await client.get("/activity")
+            assert res_activity.status_code == 200
+            html_activity = await res_activity.get_data(as_text=True)
+            assert '<input type="hidden" name="csrf_token"' not in html_activity
+            assert '<meta name="csrf-token"' in html_activity
 
 
 @pytest.mark.asyncio
@@ -1246,27 +1295,29 @@ async def test_bootstrap_classes_in_templates(client):
             "debug_info": [],
             "error": None,
         }
-        with patch(
-            "aiosyslogd.web.get_available_databases",
-            new_callable=AsyncMock,
-            return_value=["syslog.sqlite3"],
-        ):
-            with patch(
+        with (
+            patch(
+                "aiosyslogd.web.get_available_databases",
+                new_callable=AsyncMock,
+                return_value=["syslog.sqlite3"],
+            ),
+            patch(
                 "aiosyslogd.web.LogQuery.run",
                 new_callable=AsyncMock,
                 return_value=mock_result,
-            ):
-                res_index = await client.get("/")
-                html_index = await res_index.get_data(as_text=True)
-                assert "text-4xl" not in html_index
-                assert "text-gray-" not in html_index
-                assert "rounded-lg" not in html_index
+            ),
+        ):
+            res_index = await client.get("/")
+            html_index = await res_index.get_data(as_text=True)
+            assert "text-4xl" not in html_index
+            assert "text-gray-" not in html_index
+            assert "rounded-lg" not in html_index
 
-                res_activity = await client.get("/activity")
-                html_activity = await res_activity.get_data(as_text=True)
-                assert "text-4xl" not in html_activity
-                assert "text-gray-" not in html_activity
-                assert "rounded-lg" not in html_activity
+            res_activity = await client.get("/activity")
+            html_activity = await res_activity.get_data(as_text=True)
+            assert "text-4xl" not in html_activity
+            assert "text-gray-" not in html_activity
+            assert "rounded-lg" not in html_activity
 
 
 @pytest.mark.asyncio

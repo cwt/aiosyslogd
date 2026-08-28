@@ -1,20 +1,21 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # Syslog Server in Python with asyncio and pluggable DB drivers.
+
+import asyncio
+import re
+import signal
+import sys
+from datetime import datetime
+from importlib import import_module
+from types import ModuleType
+from typing import Any, Self
+
+from loguru import logger
 
 from . import config
 from .db import BaseDatabase
 from .priority import SyslogMatrix
 from .rfc5424 import RFC5424_PATTERN, normalize_to_rfc5424
-from datetime import datetime
-from importlib import import_module
-from loguru import logger
-from types import ModuleType
-from typing import Dict, Any, Tuple, List, Type, Self
-import asyncio
-import re
-import signal
-import sys
 
 uvloop: ModuleType | None = None
 try:
@@ -89,11 +90,11 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         self._shutting_down: bool = False
         self._db_writer_task: asyncio.Task[None] | None = None
         self._message_queue: asyncio.Queue[
-            Tuple[bytes, Tuple[str, int], datetime]
+            tuple[bytes, tuple[str, int], datetime]
         ] = asyncio.Queue()
 
     @classmethod
-    async def create(cls: Type[Self], host: str, port: int) -> Self:
+    async def create(cls: type[Self], host: str, port: int) -> Self:
         """Creates and initializes the SyslogUDPServer instance."""
         db_driver = get_db_driver()
         server = cls(host, port, db_driver)
@@ -113,7 +114,7 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
             self._db_writer_task = self.loop.create_task(self.database_writer())
             logger.info("Database writer task started.")
 
-    def datagram_received(self, data: bytes, addr: Tuple[str, int]) -> None:
+    def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         """Quickly queue incoming messages without processing."""
         if self._shutting_down:
             return
@@ -132,7 +133,7 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
 
     async def database_writer(self) -> None:
         """A dedicated task to write messages to the database in batches."""
-        batch: List[Dict[str, Any]] = []
+        batch: list[dict[str, Any]] = []
         while not self._shutting_down:
             try:
                 data, addr, received_at = await asyncio.wait_for(
@@ -146,7 +147,7 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
                     if self.db:
                         await self.db.write_batch(batch)
                     batch.clear()
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 if batch and self.db:
                     await self.db.write_batch(batch)
                 batch.clear()
@@ -159,8 +160,8 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         logger.info("Database writer task finished.")
 
     def process_datagram(
-        self, data: bytes, address: Tuple[str, int], received_at: datetime
-    ) -> Dict[str, Any] | None:
+        self, data: bytes, address: tuple[str, int], received_at: datetime
+    ) -> dict[str, Any] | None:
         """Processes a single datagram and returns a dictionary of params for DB insert."""
         try:
             decoded_data: str = data.decode("utf-8")
@@ -192,7 +193,7 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
                 "Message": processed_data,
             }
 
-        parts: Dict[str, Any] = match.groupdict()
+        parts: dict[str, Any] = match.groupdict()
         try:
             ts_str: str = parts["ts"].upper().replace("Z", "+00:00")
             device_reported_time = datetime.fromisoformat(ts_str)

@@ -55,6 +55,15 @@ filterwarnings = [
     "ignore:'asyncio.set_event_loop_policy' is deprecated:DeprecationWarning"
 ]
 
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+"aiosyslogd/activity/parsers/__init__.py" = ["E402"]
+
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

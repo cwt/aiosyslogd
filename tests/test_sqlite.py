@@ -1,13 +1,14 @@
-from datetime import datetime, timedelta
-from typing import Dict, Any
-import aiosqlite
 import os
+import sqlite3
+import sys
+from datetime import datetime, timedelta
+from typing import Any
+from unittest.mock import AsyncMock, patch
+
+import aiosqlite
 import pytest
 import pytest_asyncio
-import sqlite3
-from unittest.mock import patch, AsyncMock
 from loguru import logger
-import sys
 
 # --- Import the real SQLiteDriver from the application source code ---
 from aiosyslogd.db.sqlite import SQLiteDriver
@@ -30,7 +31,7 @@ sqlite3.register_converter("timestamp", convert_timestamp)
 
 
 # --- Helper Function for Test Data ---
-def create_log_entry(message: str, timestamp: datetime) -> Dict[str, Any]:
+def create_log_entry(message: str, timestamp: datetime) -> dict[str, Any]:
     """Creates a structured log entry for testing."""
     return {
         "Facility": 1,

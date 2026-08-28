@@ -1,11 +1,7 @@
-# -*- coding: utf-8 -*-
-from typing import Tuple, Dict
-
-
 class SyslogMatrix:
     """A class to decode syslog priority codes."""
 
-    LEVELS: Tuple[str, ...] = (
+    LEVELS: tuple[str, ...] = (
         "emergency",
         "alert",
         "critical",
@@ -15,7 +11,7 @@ class SyslogMatrix:
         "info",
         "debug",
     )
-    FACILITIES: Tuple[str, ...] = (
+    FACILITIES: tuple[str, ...] = (
         "kernel",
         "user",
         "mail",
@@ -46,7 +42,7 @@ class SyslogMatrix:
         """Initializes the SyslogMatrix with a mapping of priority codes."""
         # Create a mapping of syslog priority codes to (facility, level) tuples
         # using a dictionary comprehension for efficient lookups and clean code.
-        self.matrix: Dict[str, Tuple[str, str]] = {
+        self.matrix: dict[str, tuple[str, str]] = {
             str(i): (facility, level)
             for i, (facility, level) in enumerate(
                 (f, lvl) for f in self.FACILITIES for lvl in self.LEVELS
@@ -55,7 +51,7 @@ class SyslogMatrix:
 
     def decode(
         self, code: str | int
-    ) -> Tuple[Tuple[str, int], Tuple[str, int]]:
+    ) -> tuple[tuple[str, int], tuple[str, int]]:
         """Decodes a syslog priority code into facility and level tuples."""
         str_code: str = str(code)
         facility_str, level_str = self.matrix.get(
@@ -66,7 +62,7 @@ class SyslogMatrix:
             (level_str, self.LEVELS.index(level_str)),
         )
 
-    def decode_int(self, code: str | int) -> Tuple[int, int]:
+    def decode_int(self, code: str | int) -> tuple[int, int]:
         """Decodes a syslog priority code into facility and level integer indices."""
         facility, level = self.decode(code)
         return (facility[1], level[1])

@@ -1,12 +1,13 @@
-from unittest.mock import patch, MagicMock
-import pytest
 import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from aiosyslogd.activity import (
+    ActivityReport,
+    ActivityResult,
     AppActivity,
     AppcatGroup,
-    ActivityResult,
-    ActivityReport,
 )
 from aiosyslogd.cli_activity import _make_table, _render_report, main
 
@@ -170,19 +171,19 @@ class TestRenderReport:
 class TestMain:
     def test_required_args(self):
         test_args = ["prog", "-d", "test.db", "-q", "test query"]
-        with patch.object(sys, "argv", test_args):
-            with patch(
-                "aiosyslogd.cli_activity.run_activity_report"
-            ) as mock_run:
-                mock_report = MagicMock()
-                mock_report.error = None
-                mock_report.users = []
-                mock_report.total_logs = 0
-                mock_report.query_time = 0.1
-                mock_report.total_window_minutes = 60
-                mock_run.return_value = mock_report
-                main()
-                mock_run.assert_called_once()
+        with (
+            patch.object(sys, "argv", test_args),
+            patch("aiosyslogd.cli_activity.run_activity_report") as mock_run,
+        ):
+            mock_report = MagicMock()
+            mock_report.error = None
+            mock_report.users = []
+            mock_report.total_logs = 0
+            mock_report.query_time = 0.1
+            mock_report.total_window_minutes = 60
+            mock_run.return_value = mock_report
+            main()
+            mock_run.assert_called_once()
 
     def test_passes_filters_correctly(self):
         test_args = [
@@ -217,27 +218,29 @@ class TestMain:
             total_logs=1,
             query_time=0.1,
         )
-        with patch.object(sys, "argv", test_args):
-            with patch(
+        with (
+            patch.object(sys, "argv", test_args),
+            patch(
                 "aiosyslogd.cli_activity.run_activity_report",
                 return_value=mock_report,
-            ) as mock_run:
-                main()
-                _, kwargs = mock_run.call_args
-                assert kwargs["db_path"] == "test.db"
-                assert kwargs["search_query"] == "test"
-                assert kwargs["filters"]["received_at_min"] == "2026-04-01"
-                assert kwargs["filters"]["received_at_max"] == "2026-04-02"
+            ) as mock_run,
+        ):
+            main()
+            _, kwargs = mock_run.call_args
+            assert kwargs["db_path"] == "test.db"
+            assert kwargs["search_query"] == "test"
+            assert kwargs["filters"]["received_at_min"] == "2026-04-01"
+            assert kwargs["filters"]["received_at_max"] == "2026-04-02"
 
     def test_error_exit_code(self):
         test_args = ["prog", "-d", "test.db", "-q", "test"]
-        with patch.object(sys, "argv", test_args):
-            with patch(
-                "aiosyslogd.cli_activity.run_activity_report"
-            ) as mock_run:
-                mock_report = MagicMock()
-                mock_report.error = "Fatal error"
-                mock_run.return_value = mock_report
-                with pytest.raises(SystemExit) as e:
-                    main()
-                assert e.value.code == 1
+        with (
+            patch.object(sys, "argv", test_args),
+            patch("aiosyslogd.cli_activity.run_activity_report") as mock_run,
+        ):
+            mock_report = MagicMock()
+            mock_report.error = "Fatal error"
+            mock_run.return_value = mock_report
+            with pytest.raises(SystemExit) as e:
+                main()
+            assert e.value.code == 1

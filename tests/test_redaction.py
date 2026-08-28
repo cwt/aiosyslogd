@@ -1,6 +1,7 @@
 # tests/test_redaction.py
 import pytest
-from aiosyslogd.db.logs_utils import redact, REDACTION_CHAR
+
+from aiosyslogd.db.logs_utils import REDACTION_CHAR, redact
 
 # --- Test Suite for the redact() function ---
 

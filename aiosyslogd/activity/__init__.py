@@ -1,11 +1,10 @@
+import sqlite3
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Set, Tuple
 
 import aiosqlite
-import sqlite3
 
 from aiosyslogd.activity.parsers import BaseActivityParser, FortiOSParser
 from aiosyslogd.db.sqlite_utils import get_time_boundary_ids
@@ -20,25 +19,25 @@ class AppActivity:
 @dataclass
 class AppcatGroup:
     appcat: str
-    apps: List[AppActivity] = field(default_factory=list)
+    apps: list[AppActivity] = field(default_factory=list)
     total_minutes: int = 0
 
 
 @dataclass
 class ActivityResult:
     user: str
-    appcats: List[AppcatGroup] = field(default_factory=list)
+    appcats: list[AppcatGroup] = field(default_factory=list)
     total_minutes: int = 0
 
 
 @dataclass
 class ActivityReport:
-    timeframe: Dict[str, str]
+    timeframe: dict[str, str]
     total_window_minutes: int
-    users: List[ActivityResult]
+    users: list[ActivityResult]
     total_logs: int
     query_time: float
-    error: Optional[str] = None
+    error: str | None = None
 
 
 def _parse_time_string(time_str: str) -> datetime:
@@ -54,8 +53,8 @@ def _parse_time_string(time_str: str) -> datetime:
 async def run_activity_report(
     db_path: str,
     search_query: str,
-    filters: Dict[str, str],
-    parser: Optional[BaseActivityParser] = None,
+    filters: dict[str, str],
+    parser: BaseActivityParser | None = None,
 ) -> ActivityReport:
     start_time = time.perf_counter()
     if parser is None:
@@ -132,7 +131,7 @@ async def run_activity_report(
                 f'({search_query}) AND "user"' if search_query else '"user"'
             )
 
-            active_minutes: Dict[Tuple[str, str, str], Set[str]] = defaultdict(
+            active_minutes: dict[tuple[str, str, str], set[str]] = defaultdict(
                 set
             )
             total_logs = 0
@@ -226,7 +225,7 @@ async def run_activity_report(
     def make_mid_dict():
         return defaultdict(make_inner_dict)
 
-    per_user: Dict[str, Dict[str, Dict[str, int]]] = defaultdict(make_mid_dict)
+    per_user: dict[str, dict[str, dict[str, int]]] = defaultdict(make_mid_dict)
     for (user, appcat, app), minutes in active_minutes.items():
         per_user[user][appcat][app] = len(minutes)
 
@@ -236,9 +235,9 @@ async def run_activity_report(
     def get_total_minutes(group_or_result):
         return group_or_result.total_minutes
 
-    users: List[ActivityResult] = []
+    users: list[ActivityResult] = []
     for user in sorted(per_user):
-        appcats: List[AppcatGroup] = []
+        appcats: list[AppcatGroup] = []
         user_total = 0
         for appcat in sorted(per_user[user]):
             apps_data = per_user[user][appcat]

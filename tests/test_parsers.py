@@ -1,13 +1,14 @@
-from datetime import datetime
-from loguru import logger
-from unittest.mock import patch
-import pytest
 import re
 import sys
+from datetime import datetime
+from unittest.mock import patch
+
+import pytest
+from loguru import logger
 
 # --- Import the classes and functions to be tested ---
 from aiosyslogd.priority import SyslogMatrix
-from aiosyslogd.rfc5424 import normalize_to_rfc5424, convert_rfc3164_to_rfc5424
+from aiosyslogd.rfc5424 import convert_rfc3164_to_rfc5424, normalize_to_rfc5424
 
 
 @pytest.fixture(autouse=True)

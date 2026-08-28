@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
-from datetime import datetime, UTC
-from typing import Dict
 import re
+from datetime import UTC, datetime
+
 from loguru import logger
 
 # --- RFC 5424 and RFC 3164 Syslog Message Patterns ---
@@ -66,7 +65,7 @@ def convert_rfc3164_to_rfc5424(message: str, debug_mode: bool = False) -> str:
             )
         return message
 
-    parts: Dict[str, str] = match.groupdict()
+    parts: dict[str, str] = match.groupdict()
     priority: str = parts["pri"]
     hostname: str = parts["host"]
     raw_tag: str = parts["tag"]

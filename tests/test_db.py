@@ -1,6 +1,8 @@
-from aiosyslogd.db import BaseDatabase
-from typing import Any, Dict, List
+from typing import Any
+
 import pytest
+
+from aiosyslogd.db import BaseDatabase
 
 # --- Test Suite for BaseDatabase ---
 
@@ -45,7 +47,7 @@ class TestBaseDatabase:
             async def close(self) -> None:
                 pass
 
-            async def write_batch(self, batch: List[Dict[str, Any]]) -> None:
+            async def write_batch(self, batch: list[dict[str, Any]]) -> None:
                 pass
 
         # Should not raise any errors

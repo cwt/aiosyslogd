@@ -1,18 +1,19 @@
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from loguru import logger as _logger
-from typing import Any, Dict, List, Tuple
-import aiosqlite
 import asyncio
 import glob
 import os
 import sqlite3
 import sys
 import time
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any
+
+import aiosqlite
+from loguru import logger as _logger
 
 
 # --- Helper Functions ---
-async def get_available_databases(cfg: Dict) -> List[str]:
+async def get_available_databases(cfg: dict) -> list[str]:
     """Finds available monthly SQLite database files."""
     db_template: str = (
         cfg.get("database", {})
@@ -23,18 +24,18 @@ async def get_available_databases(cfg: Dict) -> List[str]:
     search_pattern: str = f"{base}_*{ext}"
     # In case that there are a lot of files,
     # we use asyncio.to_thread to avoid blocking the event loop.
-    files: List[str] = await asyncio.to_thread(glob.glob, search_pattern)
+    files: list[str] = await asyncio.to_thread(glob.glob, search_pattern)
     files.sort(reverse=True)
     return files
 
 
 async def get_time_boundary_ids(
     conn: aiosqlite.Connection, min_time_filter: str, max_time_filter: str
-) -> Tuple[int | None, int | None, List[str]]:
+) -> tuple[int | None, int | None, list[str]]:
     """Determines the start and end IDs based on time filters."""
     start_id: int | None = None
     end_id: int | None = None
-    debug_queries: List[str] = []
+    debug_queries: list[str] = []
     db_time_format = "%Y-%m-%d %H:%M:%S"
     chunk_sizes_minutes = [5, 15, 30, 60]
 
@@ -134,7 +135,7 @@ async def get_time_boundary_ids(
             end_id = next_id_after_end - 1
         else:
             fallback_clauses = ["ReceivedAt <= ?"]
-            fallback_params: List[Any] = [end_dt.strftime(db_time_format)]
+            fallback_params: list[Any] = [end_dt.strftime(db_time_format)]
             if min_time_filter:
                 min_dt = _parse_time_string(min_time_filter)
                 fallback_clauses.append("ReceivedAt >= ?")
@@ -169,16 +170,16 @@ async def get_time_boundary_ids(
 
 def build_log_query(
     search_query: str,
-    filters: Dict[str, str],
+    filters: dict[str, str],
     last_id: int | None,
     page_size: int,
     direction: str,
     start_id: int | None,
     end_id: int | None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Constructs the SQL query and parameters for fetching logs."""
-    main_params: List[Any] = []
-    where_clauses: List[str] = []
+    main_params: list[Any] = []
+    where_clauses: list[str] = []
 
     # --- 1. Build WHERE clauses based on filters ---
 
@@ -197,8 +198,8 @@ def build_log_query(
 
     # Full-Text Search (FTS) filter
     if search_query:
-        fts_subquery_clauses: List[str] = ["Message MATCH ?"]
-        fts_subquery_params: List[Any] = [search_query]
+        fts_subquery_clauses: list[str] = ["Message MATCH ?"]
+        fts_subquery_params: list[Any] = [search_query]
 
         if start_id is not None:
             fts_subquery_clauses.append("rowid >= ?")
@@ -263,7 +264,7 @@ class QueryContext:
 
     db_path: str
     search_query: str
-    filters: Dict[str, Any]
+    filters: dict[str, Any]
     last_id: int | None
     direction: str
     page_size: int
@@ -285,7 +286,7 @@ class LogQuery:
         self.logger = logger or _logger
         self.ctx = context
         self.conn: aiosqlite.Connection | None = None
-        self.results: Dict[str, Any] = {
+        self.results: dict[str, Any] = {
             "logs": [],
             "total_logs": 0,
             "page_info": {},
@@ -304,7 +305,7 @@ class LogQuery:
             )
         )
 
-    async def run(self) -> Dict[str, Any]:
+    async def run(self) -> dict[str, Any]:
         """Executes the full query process and returns the results."""
         try:
             db_uri: str = f"file:{self.ctx.db_path}?mode=ro"

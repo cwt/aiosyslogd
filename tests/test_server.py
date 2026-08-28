@@ -1,12 +1,14 @@
-from aiosyslogd.db import BaseDatabase
-from aiosyslogd.server import SyslogUDPServer, get_db_driver
-from datetime import datetime
-from loguru import logger
-from unittest.mock import AsyncMock, patch, MagicMock
 import asyncio
+import sys
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 import pytest_asyncio
-import sys
+from loguru import logger
+
+from aiosyslogd.db import BaseDatabase
+from aiosyslogd.server import SyslogUDPServer, get_db_driver
 
 
 @pytest.fixture(autouse=True)
@@ -22,9 +24,7 @@ def create_test_datagram(
     message: str, priority: int = 34, ts: str = "2025-06-11T12:00:00.000Z"
 ) -> bytes:
     """Creates a sample RFC5424 syslog message for testing."""
-    return f"<{priority}>1 {ts} testhost testapp 1234 - - {message}".encode(
-        "utf-8"
-    )
+    return f"<{priority}>1 {ts} testhost testapp 1234 - - {message}".encode()
 
 
 @pytest.fixture

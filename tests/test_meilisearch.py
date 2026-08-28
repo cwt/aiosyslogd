@@ -1,14 +1,15 @@
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
+from loguru import logger
 
 # --- Import the real MeilisearchDriver from the application source code ---
 # This assumes your project is structured so pytest can find the aiosyslogd package.
 from meilisearch_python_sdk.errors import (
-    MeilisearchCommunicationError,
     MeilisearchApiError,
+    MeilisearchCommunicationError,
 )
-from loguru import logger
 
 # --- Import the real MeilisearchDriver from the application source code ---
 # This assumes your project is structured so pytest can find the aiosyslogd package.

@@ -7,13 +7,12 @@ Example message:
 """
 
 import re
-from typing import Optional
 
 from . import BaseActivityParser, ParsedActivity
 
 
 class FortiOSParser(BaseActivityParser):
-    def extract(self, message: str) -> Optional[ParsedActivity]:
+    def extract(self, message: str) -> ParsedActivity | None:
         app_match = re.search(r'\bapp="([^"]*)"', message)
         if not app_match:
             return None

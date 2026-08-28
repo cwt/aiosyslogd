@@ -1,13 +1,13 @@
 # aiosyslogd/config.py
-# -*- coding: utf-8 -*-
-from loguru import logger
-from typing import Any, Dict
 import os
 import sys
+from typing import Any
+
 import toml
+from loguru import logger
 
 # --- Default Configuration ---
-DEFAULT_CONFIG: Dict[str, Any] = {
+DEFAULT_CONFIG: dict[str, Any] = {
     "server": {
         "bind_ip": "0.0.0.0",
         "bind_port": 5140,
@@ -51,10 +51,10 @@ logger.add(
     level="INFO",  # Since this is a library, we default to INFO level logging.
 )
 
-_CONFIG_CACHE: Dict[str, Any] | None = None
+_CONFIG_CACHE: dict[str, Any] | None = None
 
 
-def _create_default_config(path: str) -> Dict[str, Any]:
+def _create_default_config(path: str) -> dict[str, Any]:
     """Creates the default aiosyslogd.toml file at the given path."""
     logger.info(f"Configuration file not found. Creating a default '{path}'...")
     with open(path, "w") as f:
@@ -66,7 +66,7 @@ def _create_default_config(path: str) -> Dict[str, Any]:
     return DEFAULT_CONFIG
 
 
-def load_config() -> Dict[str, Any]:
+def load_config() -> dict[str, Any]:
     """
     Loads configuration from a TOML file.
 

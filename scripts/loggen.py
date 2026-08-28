@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 loggen.py - A simple syslog message generator for testing.
 
@@ -18,10 +17,10 @@ Usage:
     python loggen.py --num-messages 500 --host 127.0.0.1 --port 5140
 """
 
-import socket
 import argparse
-import time
 import random
+import socket
+import time
 from datetime import datetime
 
 # --- Configuration ---

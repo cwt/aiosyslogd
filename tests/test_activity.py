@@ -1,10 +1,10 @@
-import pytest
-import pytest_asyncio
-import aiosqlite
 import sqlite3
 
-from aiosyslogd.activity import run_activity_report
-from aiosyslogd.activity import ActivityReport
+import aiosqlite
+import pytest
+import pytest_asyncio
+
+from aiosyslogd.activity import ActivityReport, run_activity_report
 from aiosyslogd.activity.parsers import (
     BaseActivityParser,
     ParsedActivity,

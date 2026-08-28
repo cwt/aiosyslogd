@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
-from importlib.metadata import version, PackageNotFoundError
-from typing import List
+from importlib.metadata import PackageNotFoundError, version
 
 try:
     __version__: str = version("aiosyslogd")
@@ -9,7 +7,7 @@ except PackageNotFoundError:
     __version__ = "0.0.0-dev"
 
 
-from .server import SyslogUDPServer
 from .priority import SyslogMatrix
+from .server import SyslogUDPServer
 
-__all__: List[str] = ["SyslogUDPServer", "SyslogMatrix"]
+__all__: list[str] = ["SyslogMatrix", "SyslogUDPServer"]

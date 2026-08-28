@@ -1,4 +1,5 @@
-from unittest.mock import patch, mock_open, MagicMock
+from unittest.mock import MagicMock, mock_open, patch
+
 import pytest
 import toml
 
@@ -6,8 +7,8 @@ import aiosyslogd.config as _config_module
 
 # --- Import the module and constants to be tested ---
 from aiosyslogd.config import (
-    load_config,
     DEFAULT_CONFIG,
+    load_config,
 )
 
 # --- Test Suite for config.py ---

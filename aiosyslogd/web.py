@@ -1,38 +1,40 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # aiosyslogd/web.py
 
-from .activity import run_activity_report
-from .activity.parsers import get_activity_parser
-from .config import load_config
-from .auth import AuthManager
-from .db.logs_utils import redact
-from .db.sqlite_utils import get_available_databases, QueryContext, LogQuery
-from datetime import datetime, timedelta
-from functools import wraps
-from loguru import logger
-from quart import (
-    Quart,
-    render_template,
-    request,
-    abort,
-    Response,
-    session,
-    redirect,
-    url_for,
-    flash,
-    jsonify,
-)
-from types import ModuleType
-from typing import Any, Dict, Generator
-import aiosqlite
+import argparse
 import asyncio
 import importlib.util
 import os
 import sys
 import time
-import argparse
+from collections.abc import Generator
+from datetime import datetime, timedelta
+from functools import wraps
+from types import ModuleType
+from typing import Any
 from urllib.parse import urlparse
+
+import aiosqlite
+from loguru import logger
+from quart import (
+    Quart,
+    Response,
+    abort,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
+
+from .activity import run_activity_report
+from .activity.parsers import get_activity_parser
+from .auth import AuthManager
+from .config import load_config
+from .db.logs_utils import redact
+from .db.sqlite_utils import LogQuery, QueryContext, get_available_databases
 
 uvloop: ModuleType | None = None
 try:
@@ -45,8 +47,8 @@ except ImportError:
 
 
 # --- Globals & App Setup ---
-CFG: Dict[str, Any] = load_config()
-WEB_SERVER_CFG: Dict[str, Any] = CFG.get("web_server", {})
+CFG: dict[str, Any] = load_config()
+WEB_SERVER_CFG: dict[str, Any] = CFG.get("web_server", {})
 DEBUG: bool = WEB_SERVER_CFG.get("debug", False)
 REDACT: bool = WEB_SERVER_CFG.get("redact", False)
 
@@ -233,7 +235,7 @@ async def startup() -> None:
 async def index() -> str | Response:
     """Main route for displaying and searching logs."""
     # Prepare the context for rendering the index page.
-    context: Dict[str, Any] = {
+    context: dict[str, Any] = {
         "request": request,
         "available_dbs": await get_available_databases(CFG),
         "search_query": request.args.get("q", "").strip(),
@@ -344,7 +346,15 @@ async def add_user():
         form = await request.form
         username = form.get("username")
         password = form.get("password")
+        confirm_password = form.get("confirm_password")
         is_admin = form.get("is_admin") == "on"
+
+        if confirm_password is not None and password != confirm_password:
+            await flash("Passwords do not match.", "error")
+            return await render_template(
+                "user_form.html", user=None, title="Add User"
+            )
+
         success, message = auth_manager.add_user(username, password, is_admin)
         if success:
             await flash(message, "success")
@@ -364,6 +374,7 @@ async def edit_user(username):
     if request.method == "POST":
         form = await request.form
         new_password = form.get("password")
+        confirm_password = form.get("confirm_password")
         is_admin = form.get("is_admin") == "on"
         is_enabled = form.get("is_enabled") == "on"
 
@@ -380,6 +391,14 @@ async def edit_user(username):
                 return redirect(url_for("list_users"))
 
         if new_password:
+            if (
+                confirm_password is not None
+                and new_password != confirm_password
+            ):
+                await flash("Passwords do not match.", "error")
+                return await render_template(
+                    "user_form.html", user=user, title="Edit User"
+                )
             auth_manager.update_password(username, new_password)
             await flash("Password updated.", "success")
 
@@ -414,7 +433,14 @@ async def profile():
     if request.method == "POST":
         form = await request.form
         new_password = form.get("password")
+        confirm_password = form.get("confirm_password")
         if new_password:
+            if (
+                confirm_password is not None
+                and new_password != confirm_password
+            ):
+                await flash("Passwords do not match.", "error")
+                return redirect(url_for("profile"))
             success, message = auth_manager.update_password(
                 username, new_password
             )
@@ -429,7 +455,7 @@ async def profile():
 @app.route("/activity")
 @login_required
 async def activity():
-    context: Dict[str, Any] = {
+    context: dict[str, Any] = {
         "request": request,
         "available_dbs": await get_available_databases(CFG),
         "search_query": request.args.get("q", "").strip(),
@@ -555,9 +581,9 @@ async def clear_gemini_key():
         return jsonify({"success": True})
 
     except Exception as e:
-        logger.error(f"Error handling Gemini API key clear: {str(e)}")
+        logger.error(f"Error handling Gemini API key clear: {e!s}")
         return (
-            jsonify({"error": f"Error handling API key clear: {str(e)}"}),
+            jsonify({"error": f"Error handling API key clear: {e!s}"}),
             500,
         )
 
@@ -579,8 +605,8 @@ async def save_gemini_key():
         return jsonify({"success": True})
 
     except Exception as e:
-        logger.error(f"Error handling Gemini API key save: {str(e)}")
-        return jsonify({"error": f"Error handling API key: {str(e)}"}), 500
+        logger.error(f"Error handling Gemini API key save: {e!s}")
+        return jsonify({"error": f"Error handling API key: {e!s}"}), 500
 
 
 @app.route("/api/gemini-search", methods=["POST"])
@@ -662,8 +688,8 @@ async def gemini_search():
         return jsonify({"fts5_query": fts5_query})
 
     except Exception as e:
-        logger.error(f"Gemini API error: {str(e)}")
-        return jsonify({"error": f"Error processing request: {str(e)}"}), 500
+        logger.error(f"Gemini API error: {e!s}")
+        return jsonify({"error": f"Error processing request: {e!s}"}), 500
 
 
 def check_backend() -> bool:

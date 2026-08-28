@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Dict, Optional
 
 
 @dataclass
@@ -10,14 +9,13 @@ class ParsedActivity:
 
 
 class BaseActivityParser:
-    def extract(self, message: str) -> Optional[ParsedActivity]:
+    def extract(self, message: str) -> ParsedActivity | None:
         raise NotImplementedError
 
 
-from .fortios import FortiOSParser  # noqa: E402
+from .fortios import FortiOSParser
 
-
-_ACTIVITY_PARSERS: Dict[str, type] = {
+_ACTIVITY_PARSERS: dict[str, type] = {
     "fortios": FortiOSParser,
 }
 
