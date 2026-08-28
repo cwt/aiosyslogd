@@ -29,7 +29,7 @@ This directory serves as the local bug tracking registry for the `aiosyslogd` we
 | **011** | CSRF Token Leakage in Search and Filter GET Forms | HTML / Templates | Low | Fixed | [011.md](./011.md) |
 | **012** | Unstyled Error Flash Messages (alert-error vs alert-danger) | HTML / CSS | Low | Fixed | [012.md](./012.md) |
 | **013** | Tailwind CSS Utility Classes Used in Bootstrap 5 Environment | HTML / CSS | Low | Fixed | [013.md](./013.md) |
-| **014** | Missing Margin Between Floating Form Controls on Login View | HTML / CSS | Low | Confirmed | [014.md](./014.md) |
+| **014** | Missing Margin Between Floating Form Controls on Login View | HTML / CSS | Low | Fixed | [014.md](./014.md) |
 | **015** | CSRF Protection Exemption on State-Changing API Endpoints | Python / Middleware | Medium | Confirmed | [015.md](./015.md) |
 
 ---

@@ -1244,3 +1244,14 @@ async def test_bootstrap_classes_in_templates(client):
                 assert "text-4xl" not in html_activity
                 assert "text-gray-" not in html_activity
                 assert "rounded-lg" not in html_activity
+
+
+@pytest.mark.asyncio
+async def test_login_page_floating_label_margin(client):
+    """
+    Tests that login page form-floating divs include margin classes.
+    """
+    response = await client.get("/login")
+    assert response.status_code == 200
+    html = await response.get_data(as_text=True)
+    assert "form-floating mb-3" in html
