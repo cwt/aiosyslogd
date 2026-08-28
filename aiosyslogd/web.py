@@ -32,6 +32,7 @@ import os
 import sys
 import time
 import argparse
+from urllib.parse import urlparse
 
 uvloop: ModuleType | None = None
 try:
@@ -172,6 +173,22 @@ def inject_user():
     return dict(current_user=None, gemini_available=is_gemini_available())
 
 
+def is_safe_url(target: str | None) -> bool:
+    """Validate that target URL is a safe internal path to prevent open redirect."""
+    if not target:
+        return False
+    test_url = urlparse(target)
+    if test_url.scheme or test_url.netloc:
+        return False
+    if (
+        not target.startswith("/")
+        or target.startswith("//")
+        or target.startswith("/\\")
+    ):
+        return False
+    return True
+
+
 @app.route("/login", methods=["GET", "POST"])
 async def login():
     if request.method == "POST":
@@ -181,7 +198,9 @@ async def login():
         if auth_manager.check_password(username, password):
             session["username"] = username
             next_page = request.args.get("next")
-            return redirect(next_page or url_for("index"))
+            if next_page and is_safe_url(next_page):
+                return redirect(next_page)
+            return redirect(url_for("index"))
         else:
             await flash("Invalid username or password.", "error")
     return await render_template("login.html")

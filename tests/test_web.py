@@ -741,6 +741,28 @@ async def test_login_route(client):
         assert response.status_code == 302
         assert response.location.endswith("/")  # Redirect to index
 
+        # Safe next URL redirect
+        response = await client.post(
+            "/login?next=/users",
+            form={"username": "admin", "password": "password"},
+        )
+        assert response.status_code == 302
+        assert response.location == "/users"
+
+        # Malicious next URL redirects (must fallback to index)
+        for unsafe_next in [
+            "https://attacker.com",
+            "//attacker.com",
+            "/\\attacker.com",
+            "javascript:alert(1)",
+        ]:
+            response = await client.post(
+                f"/login?next={unsafe_next}",
+                form={"username": "admin", "password": "password"},
+            )
+            assert response.status_code == 302
+            assert response.location.endswith("/")
+
     # POST Failure
     with patch("aiosyslogd.web.auth_manager") as mock_auth:
         mock_auth.check_password.return_value = False
