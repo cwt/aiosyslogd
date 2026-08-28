@@ -330,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // Show the Gemini modal
-            const modal = new bootstrap.Modal(document.getElementById('geminiModal'));
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('geminiModal'));
             modal.show();
         });
     }
@@ -402,8 +402,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 // Close auth modal and open main Gemini modal
                 setTimeout(() => {
-                    bootstrap.Modal.getInstance(document.getElementById('geminiAuthModal')).hide();
-                    const mainModal = new bootstrap.Modal(document.getElementById('geminiModal'));
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('geminiAuthModal')).hide();
+                    const mainModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('geminiModal'));
                     mainModal.show();
                 }, 1000);
             } else {
@@ -467,7 +467,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 insertBtn.onclick = function() {
                     document.querySelector('input[name="q"]').value = data.fts5_query;
                     document.querySelector('form').submit();
-                    bootstrap.Modal.getInstance(document.getElementById('geminiModal')).hide();
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('geminiModal')).hide();
                 };
                 responseDiv.appendChild(insertBtn);
             } else {
@@ -495,7 +495,7 @@ document.addEventListener('DOMContentLoaded', function() {
 {% endif %}
 
 function showGeminiAuthModal() {
-    const modal = new bootstrap.Modal(document.getElementById('geminiAuthModal'));
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('geminiAuthModal'));
     modal.show();
 }
 
