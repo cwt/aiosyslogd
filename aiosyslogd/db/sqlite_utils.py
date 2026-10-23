@@ -2,7 +2,6 @@ import asyncio
 import glob
 import os
 import sqlite3
-import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -277,13 +276,8 @@ class LogQuery:
     def __init__(self, context: QueryContext, logger: Any = None):
         """Initializes the LogQuery with a QueryContext."""
         if logger is None:  # Use a default logger if none provided
-            _logger.remove()
-            _logger.add(
-                sys.stderr,
-                format="[{time:YYYY-MM-DD HH:mm:ss ZZ}] [{process}] [{level}] {message}",
-                level="INFO",
-            )
-        self.logger = logger or _logger
+            logger = _logger
+        self.logger = logger
         self.ctx = context
         self.conn: aiosqlite.Connection | None = None
         self.results: dict[str, Any] = {

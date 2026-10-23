@@ -81,6 +81,12 @@ class SQLiteDriver(BaseDatabase):
             # Keep only the most recent retention_months
             to_delete = sorted_files[self.retention_months :]
 
+        # Never delete the database file that is currently in use.
+        if self._current_db_path is not None:
+            to_delete = [
+                item for item in to_delete if item[0] != self._current_db_path
+            ]
+
         deleted_count = 0
         for filepath, file_dt in to_delete:
             try:
@@ -253,6 +259,3 @@ class SQLiteDriver(BaseDatabase):
 
             for month_batch in batches_by_month.values():
                 await self._write_sub_batch(month_batch)
-
-
-SqliteDriver = SQLiteDriver  # For driver loader with {DB_DRIVER.capitalize()}

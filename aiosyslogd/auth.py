@@ -42,12 +42,23 @@ class AuthManager:
     def _write_json_atomic(self, file_path, data):
         dir_name = os.path.dirname(os.path.abspath(file_path)) or "."
         os.makedirs(dir_name, exist_ok=True)
-        with tempfile.NamedTemporaryFile("w", dir=dir_name, delete=False) as tf:
-            temp_name = tf.name
-            json.dump(data, tf, indent=4)
-            tf.flush()
-            os.fsync(tf.fileno())
-        os.replace(temp_name, file_path)
+        temp_name = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w", dir=dir_name, delete=False
+            ) as tf:
+                temp_name = tf.name
+                json.dump(data, tf, indent=4)
+                tf.flush()
+                os.fsync(tf.fileno())
+            os.replace(temp_name, file_path)
+            temp_name = None
+        finally:
+            if temp_name is not None and os.path.exists(temp_name):
+                try:
+                    os.remove(temp_name)
+                except OSError:
+                    pass
 
     def _load_users(self):
         if not os.path.exists(self.users_file):

@@ -40,6 +40,13 @@ class SyslogMatrix:
 
     def __init__(self) -> None:
         """Initializes the SyslogMatrix with a mapping of priority codes."""
+        # Precompute index lookups for O(1) decoding.
+        self._facility_index: dict[str, int] = {
+            name: index for index, name in enumerate(self.FACILITIES)
+        }
+        self._level_index: dict[str, int] = {
+            name: index for index, name in enumerate(self.LEVELS)
+        }
         # Create a mapping of syslog priority codes to (facility, level) tuples
         # using a dictionary comprehension for efficient lookups and clean code.
         self.matrix: dict[str, tuple[str, str]] = {
@@ -58,8 +65,8 @@ class SyslogMatrix:
             str_code, ("kernel", "emergency")
         )  # Fallback to 0, 0
         return (
-            (facility_str, self.FACILITIES.index(facility_str)),
-            (level_str, self.LEVELS.index(level_str)),
+            (facility_str, self._facility_index[facility_str]),
+            (level_str, self._level_index[level_str]),
         )
 
     def decode_int(self, code: str | int) -> tuple[int, int]:

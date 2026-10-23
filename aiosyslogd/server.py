@@ -62,7 +62,11 @@ def get_db_driver() -> BaseDatabase | None:
     # --- END SECURITY MITIGATION ---
     try:
         driver_module = import_module(f".db.{DB_DRIVER}", package="aiosyslogd")
-        driver_class = getattr(driver_module, f"{DB_DRIVER.capitalize()}Driver")
+        driver_class_name = {
+            "sqlite": "SQLiteDriver",
+            "meilisearch": "MeilisearchDriver",
+        }.get(DB_DRIVER, f"{DB_DRIVER.capitalize()}Driver")
+        driver_class = getattr(driver_module, driver_class_name)
         driver_config = DB_CFG.get(DB_DRIVER, {})
         return driver_class(driver_config)
     except (ImportError, AttributeError) as e:
@@ -139,24 +143,46 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
                 data, addr, received_at = await asyncio.wait_for(
                     self._message_queue.get(), timeout=BATCH_TIMEOUT
                 )
-                params = self.process_datagram(data, addr, received_at)
-                if params:
-                    batch.append(params)
-                self._message_queue.task_done()
-                if len(batch) >= BATCH_SIZE:
-                    if self.db:
-                        await self.db.write_batch(batch)
-                    batch.clear()
             except TimeoutError:
                 if batch and self.db:
-                    await self.db.write_batch(batch)
+                    try:
+                        await self.db.write_batch(batch)
+                    except Exception:
+                        logger.opt(exception=True).error(
+                            "Error in database writer"
+                        )
                 batch.clear()
+                continue
             except asyncio.CancelledError:
                 break
             except Exception:
                 logger.opt(exception=True).error("Error in database writer")
+                continue
+
+            try:
+                params = self.process_datagram(data, addr, received_at)
+                if params:
+                    batch.append(params)
+            except Exception:
+                logger.opt(exception=True).error("Error in database writer")
+            finally:
+                self._message_queue.task_done()
+
+            if len(batch) >= BATCH_SIZE:
+                if self.db:
+                    try:
+                        await self.db.write_batch(batch)
+                    except Exception:
+                        logger.opt(exception=True).error(
+                            "Error in database writer"
+                        )
+                batch.clear()
         if batch and self.db:
-            await self.db.write_batch(batch)  # Final write
+            try:
+                await self.db.write_batch(batch)  # Final write
+            except Exception:
+                logger.opt(exception=True).error("Error in database writer")
+        batch.clear()
         logger.info("Database writer task finished.")
 
     def process_datagram(
@@ -200,9 +226,10 @@ class SyslogUDPServer(asyncio.DatagramProtocol):
         except (ValueError, TypeError):
             device_reported_time = received_at
 
+        facility, priority = self.syslog_matrix.decode_int(parts["pri"])
         return {
-            "Facility": self.syslog_matrix.decode_int(parts["pri"])[0],
-            "Priority": self.syslog_matrix.decode_int(parts["pri"])[1],
+            "Facility": facility,
+            "Priority": priority,
             "FromHost": parts["host"] if parts["host"] != "-" else address[0],
             "InfoUnitID": 1,
             "ReceivedAt": received_at,
@@ -277,8 +304,12 @@ def main() -> None:
             loop = asyncio.get_running_loop()
             return loop.__class__.__module__
         except RuntimeError:
-            # If no running loop, return the default
-            return asyncio.new_event_loop().__class__.__module__
+            # If no running loop, inspect a temporary loop without leaking it.
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.__class__.__module__
+            finally:
+                loop.close()
 
     logger.info(f"Using {get_event_loop_info()} for the event loop.")
     try:
