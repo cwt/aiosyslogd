@@ -35,7 +35,9 @@ class SQLiteDriver(BaseDatabase):
         logger.info(
             "SQLite driver initialized. Connection will be made on first write."
         )
-        await self.cleanup_old_databases()
+        await self.cleanup_old_databases(
+            protect={self._get_db_path_for_month(datetime.now())}
+        )
 
     async def close(self) -> None:
         """Closes the current database connection if it exists."""
@@ -67,8 +69,15 @@ class SQLiteDriver(BaseDatabase):
                 )
         return db_files
 
-    async def cleanup_old_databases(self) -> None:
-        """Deletes old database files, keeping only the most recent retention_months monthly files."""
+    async def cleanup_old_databases(
+        self, protect: set[str] | None = None
+    ) -> None:
+        """Deletes old database files, keeping only the most recent retention_months monthly files.
+
+        Paths given in `protect` are never deleted, even when they fall
+        out of retention. Callers pass the database file that is currently
+        in use (or about to be used), so cleanup can never wipe live data.
+        """
         db_files = self._get_database_files()
         if self.retention_months <= 0:
             to_delete = db_files
@@ -81,10 +90,15 @@ class SQLiteDriver(BaseDatabase):
             # Keep only the most recent retention_months
             to_delete = sorted_files[self.retention_months :]
 
-        # Never delete the database file that is currently in use.
-        if self._current_db_path is not None:
+        # Never delete database files that are in use or about to be used.
+        # Paths are normalized, since glob results and the template can
+        # differ in form (e.g. a leading "./").
+        keep_paths = {os.path.abspath(path) for path in protect or set()}
+        if keep_paths:
             to_delete = [
-                item for item in to_delete if item[0] != self._current_db_path
+                item
+                for item in to_delete
+                if os.path.abspath(item[0]) not in keep_paths
             ]
 
         deleted_count = 0
@@ -124,8 +138,10 @@ class SQLiteDriver(BaseDatabase):
             logger.info(
                 f"Month changed. Switching connection to '{target_db_path}'..."
             )
-            # Clean up old databases before switching to the new one
-            await self.cleanup_old_databases()
+            # Clean up old databases before switching to the new one.
+            # Protect the target file: a restart within the same month
+            # would otherwise let cleanup delete it before reconnecting.
+            await self.cleanup_old_databases(protect={target_db_path})
 
             self.db = await aiosqlite.connect(target_db_path)
             await self.db.execute("PRAGMA journal_mode=WAL;")

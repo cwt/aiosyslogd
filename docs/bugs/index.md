@@ -44,6 +44,7 @@ This directory serves as the local tracking registry for defects and architectur
 | **026** | Add Dark Mode Color Scheme Support via Bootstrap 5.3+ | Improvement | CSS / Dark Mode | Low | Implemented | [026.md](./026.md) |
 | **027** | Add Accessibility Improvements (A11y, ARIA Labels, and Table Scopes) | Improvement | Accessibility / A11y | Low | Implemented | [027.md](./027.md) |
 | **028** | Add Subresource Integrity (SRI) Hashes to CDN Assets and Add Default Favicon | Improvement | Security / Assets | Low | Implemented | [028.md](./028.md) |
+| **029** | Unreachable In-Use Database Guard in Monthly Retention Cleanup | Bug | Python / Database | Medium | Fixed | [029.md](./029.md) |
 
 ---
 
@@ -65,6 +66,7 @@ This directory serves as the local tracking registry for defects and architectur
 - [013. Tailwind CSS Utility Classes Used in Bootstrap 5 Environment](./013.md)
 - [014. Missing Margin Between Floating Form Controls on Login View](./014.md)
 - [015. CSRF Protection Exemption on State-Changing API Endpoints](./015.md)
+- [029. Unreachable In-Use Database Guard in Monthly Retention Cleanup](./029.md)
 
 ### Proposed Architectural & UI Improvements
 - **Template Architecture**: [016](./016.md), [017](./017.md), [018](./018.md)
@@ -76,6 +78,12 @@ This directory serves as the local tracking registry for defects and architectur
 ---
 
 ## Validation Log
+
+### 2026-10-23 — Dead Guard Remediation in SQLite Retention Cleanup
+Registered and fixed [029](./029.md): the in-use database guard in
+`cleanup_old_databases()` was unreachable in every call path. The guard was
+replaced with an explicit `protect` list passed by `connect()` and
+`_switch_db_if_needed()`, verified by two new regression tests.
 
 ### 2026-08-28 — Frontend Improvement Proposals Recorded
 Registered 13 improvement proposals ([016](./016.md)–[028](./028.md)) covering template architecture, CSP readiness, performance, typography, accessibility, and visual modernizations.

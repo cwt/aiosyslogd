@@ -130,6 +130,53 @@ class TestSQLiteCleanup:
         assert not os.path.exists(old_path)
 
     @pytest.mark.asyncio
+    async def test_connect_never_deletes_current_month_file(
+        self, sqlite_driver, temp_db_dir
+    ):
+        """Regression: startup cleanup must never delete the in-use database.
+
+        With retention disabled (retention_months = 0), the old implementation
+        deleted every monthly database file on connect(), including the
+        current month's file with its live data.
+        """
+        sqlite_driver.retention_months = 0
+        current_path = os.path.join(
+            temp_db_dir,
+            f"test_syslog_{datetime.now().strftime('%Y%m')}.sqlite3",
+        )
+        with open(current_path, "w") as f:
+            f.write("sentinel")
+
+        await sqlite_driver.connect()
+
+        assert os.path.exists(current_path)
+        with open(current_path) as f:
+            assert f.read() == "sentinel"
+
+    @pytest.mark.asyncio
+    async def test_cleanup_protects_given_paths(
+        self, sqlite_driver, temp_db_dir
+    ):
+        """Explicitly protected files survive cleanup even when out of retention."""
+        recent_path = os.path.join(
+            temp_db_dir,
+            f"test_syslog_{datetime.now().strftime('%Y%m')}.sqlite3",
+        )
+        with open(recent_path, "w") as f:
+            f.write("test")
+
+        old_date = datetime.now() - timedelta(days=150)
+        very_old_path = os.path.join(
+            temp_db_dir, f"test_syslog_{old_date.strftime('%Y%m')}.sqlite3"
+        )
+        with open(very_old_path, "w") as f:
+            f.write("test")
+
+        await sqlite_driver.cleanup_old_databases(protect={very_old_path})
+
+        assert os.path.exists(very_old_path)
+
+    @pytest.mark.asyncio
     async def test_close_handles_no_active_connection(self, sqlite_driver):
         """Test that close() works even when there's no active connection."""
         # Should not raise an exception when closing without active connection
