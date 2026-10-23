@@ -12,7 +12,7 @@
 
 ## Reporting a Vulnerability
 
-Please do not report security issues via public SourceHut Tickets or GitHub Issues. Instead, email vulnerabilities to my email address listed in the [LICENSE](LICENSE) file. Include:
+Please do not report security issues via GitHub Issues. Instead, email vulnerabilities to my email address listed in the [LICENSE](LICENSE) file. Include:
 - A description of the vulnerability.
 - Steps to reproduce (if applicable).
 - Potential impact.

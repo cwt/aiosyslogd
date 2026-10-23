@@ -31,9 +31,6 @@ gemini = [
 homepage = "https://github.com/cwt/aiosyslogd"
 repository = "https://github.com/cwt/aiosyslogd"
 
-[tool.poetry.urls]
-"SourceHut Mirror" = "https://hg.sr.ht/~cwt/aiosyslogd"
-
 [tool.poetry.scripts]
 aiosyslogd = "aiosyslogd.server:main"
 aiosyslogd-web = "aiosyslogd.web:main"
