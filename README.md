@@ -1,6 +1,10 @@
 # **aiosyslogd**
 
+[![License](https://img.shields.io/pypi/l/aiosyslogd)](LICENSE)
+[![Python Compatibility](https://img.shields.io/pypi/pyversions/aiosyslogd)](#installation)
 [![PyPI Version](https://img.shields.io/pypi/v/aiosyslogd.svg)](https://pypi.org/project/aiosyslogd/)
+[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/cwt/aiosyslogd)<!-- [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/cwt/aiosyslogd) -->
+[![View Code Wiki](https://assets.codewiki.google/readme-badge/static.svg)](https://codewiki.google/github.com/cwt/aiosyslogd?utm_source=badge&utm_medium=github&utm_campaign=github.com/cwt/aiosyslogd)
 [![Quay.io Build Status](https://quay.io/repository/cwt/aiosyslogd/status "Quay.io Build Status")](https://quay.io/repository/cwt/aiosyslogd)
 
 **aiosyslogd** is a high-performance, asynchronous Syslog server built with Python's asyncio. It is designed for efficiently receiving, parsing, and storing a large volume of syslog messages.
